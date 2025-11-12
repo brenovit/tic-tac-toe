@@ -16,8 +16,22 @@ Documentation for dependencies and processes can be found in the [Knowledge Inde
 
 ALWAYS create [plan files](.tessl/framework/plan-files.md) when planning: @.tessl/framework/plan-files.md
 
-# Project Bootstrapping <!-- tessl-managed -->
+# Project Configuration
 
-<!-- Replace this section with a description of the language(s), test framework(s) and project directory structure. -->
+## Language and Stack
+- **Language**: TypeScript
+- **Runtime**: Node.js with ES modules
 
-Run the [bootstrap process](.tessl/framework/bootstrap.md) to set up the project: @.tessl/framework/bootstrap.md
+## Testing Framework
+- **Framework**: Vitest
+- **Test Command**: `npm test`
+
+## Directory Structure
+- **Specs**: `./specs` - Specification files (.md)
+- **Source Code**: `./src` - TypeScript source files (.ts)
+- **Tests**: `./src` - Test files (co-located with source code)
+
+## Development Environment
+- Use npm for package management
+- TypeScript configuration should support ES modules
+- Vitest for testing with TypeScript support
