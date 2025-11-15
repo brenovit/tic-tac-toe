@@ -21,3 +21,9 @@ A cybernetically enhanced web application framework that compiles to highly opti
 SvelteKit is the fastest way to build Svelte apps with file-based routing, server-side rendering, and multiple deployment adapters
 
 [docs](.tessl/usage-specs/tessl/npm-sveltejs--kit/docs/index.md)
+
+### ws@8.18.2
+
+Simple to use, blazing fast and thoroughly tested WebSocket client and server for Node.js
+
+[docs](.tessl/usage-specs/tessl/npm-ws/docs/index.md)

@@ -32,7 +32,30 @@ Target state: Online multiplayer with rooms, player names, and shareable links
   > - WebSocket library (ws or socket.io)
   > - Google Cloud deployment/adapters
 
-- [ ] Search Tessl registry for missing documentation
+- [x] Search Tessl registry for missing documentation
+  > **MCP** `tessl - search`
+  > - query: "sveltekit"
+  > - query: "socket.io"
+  > - query: "ws"
+  > - query: "google cloud adapter"
+  >
+  > Found:
+  > - SvelteKit: tessl/npm-sveltejs--kit@2.37.0
+  > - WebSocket library: tessl/npm-ws@8.18.0
+  > - No Google Cloud adapter docs found (will use standard Node adapter)
+  > ---
+  >
+  > **MCP** `tessl - install`
+  > - name: "tessl/npm-sveltejs--kit@2.37.0"
+  >
+  > Installed [SvelteKit docs](../.tessl/usage-specs/tessl/npm-sveltejs--kit/docs/index.md)
+  > ---
+  >
+  > **MCP** `tessl - install`
+  > - name: "tessl/npm-ws@8.18.0"
+  >
+  > Installed [ws library docs](../.tessl/usage-specs/tessl/npm-ws/docs/index.md)
+  > Updated [KNOWLEDGE.md](../KNOWLEDGE.md)
 - [ ] Design system architecture (client-server communication, room management)
 - [ ] Create or update specs for:
   - [ ] Room management backend service

@@ -9,6 +9,9 @@
     },
     "tessl/npm-sveltejs--kit": {
       "version": "2.37.0"
+    },
+    "tessl/npm-ws": {
+      "version": "8.18.0"
     }
   }
 }
