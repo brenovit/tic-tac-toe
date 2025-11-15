@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import type { Player, RoomState, CellValue, GameResult, ClientToServerMessage, ServerToClientMessage } from '$lib/types/game-types';
 
 	interface LandingPageState {
 		playerName: string;
@@ -61,59 +60,29 @@
 		}
 	}
 
-	async function createRoom(playerName: string): Promise<{ roomId: string }> {
-		return new Promise((resolve, reject) => {
-			try {
-				const ws = new WebSocket('ws://localhost:3001');
-				
-				ws.onopen = () => {
-					const message: ClientToServerMessage = {
-						type: 'createRoom',
-						playerName: playerName.trim()
-					};
-					ws.send(JSON.stringify(message));
-				};
-
-				ws.onmessage = (event) => {
-					const message: ServerToClientMessage = JSON.parse(event.data);
-					
-					if (message.type === 'roomCreated') {
-						ws.close();
-						resolve({ roomId: message.roomState.id });
-					} else if (message.type === 'error') {
-						ws.close();
-						reject(new Error(message.message));
-					}
-				};
-
-				ws.onerror = () => {
-					ws.close();
-					reject(new Error('WebSocket connection failed'));
-				};
-
-				ws.onclose = (event) => {
-					if (event.code !== 1000) {
-						reject(new Error('Connection closed unexpectedly'));
-					}
-				};
-
-				// Timeout after 10 seconds
-				setTimeout(() => {
-					if (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN) {
-						ws.close();
-						reject(new Error('Connection timeout'));
-					}
-				}, 10000);
-
-			} catch (error) {
-				reject(error);
-			}
+	async function createRoom(playerName: string): Promise<{ roomId: string; playerId: string }> {
+		const response = await fetch('/api/rooms', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({ playerName: playerName.trim() })
 		});
+
+		if (!response.ok) {
+			const error = await response.text();
+			throw new Error(error || 'Failed to create room');
+		}
+
+		return await response.json();
 	}
 
-	function navigateToRoom(roomId: string, playerName: string): void {
+	function navigateToRoom(roomId: string, playerName: string, playerId: string): void {
 		const params = new URLSearchParams();
 		params.set('name', playerName.trim());
+		if (playerId) {
+			params.set('playerId', playerId);
+		}
 		goto(`/room/${roomId}?${params.toString()}`);
 	}
 
@@ -128,8 +97,8 @@
 		state.errors.connection = undefined;
 
 		try {
-			const { roomId } = await createRoom(state.playerName.trim());
-			navigateToRoom(roomId, state.playerName.trim());
+			const { roomId, playerId } = await createRoom(state.playerName.trim());
+			navigateToRoom(roomId, state.playerName.trim(), playerId);
 		} catch (error) {
 			state.errors.connection = error instanceof Error ? error.message : 'Failed to create room. Please try again.';
 		} finally {
@@ -149,7 +118,7 @@
 		}
 
 		if (!nameError && !roomError) {
-			navigateToRoom(state.roomId.toUpperCase(), state.playerName.trim());
+			navigateToRoom(state.roomId.toUpperCase(), state.playerName.trim(), '');
 		}
 	}
 

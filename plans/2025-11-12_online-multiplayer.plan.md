@@ -222,8 +222,51 @@ Target state: Online multiplayer with rooms, player names, and shareable links
   > Created [specs/client/game-room-page.spec.md](../specs/client/game-room-page.spec.md)
   >
   > All specs created successfully with proper dependencies linked.
-- [ ] Get user feedback on specs before building
-- [ ] Install any new required dependencies
+- [x] Get user feedback on specs before building
+  > User feedback received:
+  > 1. Change game-room-page from [@describe] to [@generate] ✓
+  > 2. Use SvelteKit API endpoint for room creation instead of WebSocket ✓
+  > 3. WebSocket should only be used in game room for real-time gameplay ✓
+  >
+  > ---
+  >
+  > **Edit** [specs/client/game-room-page.spec.md](../specs/client/game-room-page.spec.md)
+  > - old_string: [@describe](../../src/routes/room/[id]/+page.svelte)
+  > - new_string: [@generate](../../src/routes/room/[id]/+page.svelte)
+  >
+  > Changed from [@describe] to [@generate]
+  > ---
+  >
+  > **Edit** [specs/client/landing-page.spec.md](../specs/client/landing-page.spec.md)
+  > - Updated "Create New Room" capability to use SvelteKit API endpoint POST /api/rooms
+  > - Removed WebSocket connection for room creation
+  > - Updated API section to reflect HTTP-based room creation
+  > - Added dependency on room-api.spec.md
+  >
+  > Updated to use REST API instead of WebSocket for room creation
+  > ---
+  >
+  > **MCP** `tessl - create`
+  > - spec: specs/server/room-api.spec.md
+  > - prompt: Create SvelteKit API route for room creation via POST /api/rooms
+  > - context: [".tessl/usage-specs/tessl/npm-sveltejs--kit/docs/index.md"]
+  >
+  > Created [specs/server/room-api.spec.md](../specs/server/room-api.spec.md)
+  > New API endpoint spec for HTTP-based room creation
+- [x] Install any new required dependencies
+  > **Bash** `npm install ws uuid`
+  > Installed ws and uuid packages
+  > ---
+  >
+  > **Bash** `npm install -D @types/ws @types/uuid @sveltejs/adapter-node`
+  > Installed dev dependencies for TypeScript types and Node adapter
+  > ---
+  >
+  > **Edit** [svelte.config.js](../svelte.config.js)
+  > - old_string: import adapter from '@sveltejs/adapter-auto';
+  > - new_string: import adapter from '@sveltejs/adapter-node';
+  >
+  > Updated SvelteKit adapter for WebSocket support and Google Cloud Run deployment
 - [ ] Build specs to generate implementation
 - [ ] Fix and test until working
 - [ ] Create deployment documentation

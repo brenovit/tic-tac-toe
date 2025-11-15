@@ -22,10 +22,9 @@ Allows players to enter their display name with validation.
 Enables players to create a new game room and become the host.
 
 - Validates player name before attempting to create room
-- Connects to WebSocket server
-- Sends create-room message to server
+- Calls SvelteKit API endpoint POST /api/rooms to create room
 - Shows loading state while creating room
-- On success, navigates to /room/[roomId] with player name
+- On success, navigates to /room/[roomId] with player name in URL state
 - Displays error message if room creation fails
 - Button is disabled during loading or validation errors
 
@@ -84,11 +83,11 @@ interface LandingPageState {
 function validatePlayerName(name: string): string | null;
 function validateRoomId(id: string): string | null;
 
-// WebSocket operations
-function createRoom(playerName: string): Promise<{ roomId: string }>;
+// API operations
+function createRoom(playerName: string): Promise<{ roomId: string; playerId: string }>;
 
 // Navigation helpers
-function navigateToRoom(roomId: string, playerName: string): void;
+function navigateToRoom(roomId: string, playerName: string, playerId: string): void;
 ```
 
 ## Dependencies
@@ -97,6 +96,11 @@ function navigateToRoom(roomId: string, playerName: string): void;
 
 Type definitions for room IDs and validation rules.
 [@use](../types/game-types.spec.md)
+
+### Room API Endpoint
+
+API endpoint for creating rooms.
+[@use](../server/room-api.spec.md)
 
 ### SvelteKit Navigation
 
