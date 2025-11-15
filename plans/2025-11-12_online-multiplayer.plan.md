@@ -173,11 +173,55 @@ Target state: Online multiplayer with rooms, player names, and shareable links
   >       └── room/[id]/
   >           └── +page.svelte (Game room)
   > ```
-- [ ] Create or update specs for:
-  - [ ] Room management backend service
-  - [ ] WebSocket/real-time communication layer
-  - [ ] Updated frontend with player name and room UI
-  - [ ] Deployment configuration for Google Cloud
+- [x] Create or update specs for:
+  > **MCP** `tessl - create`
+  > - spec: specs/types/game-types.spec.md
+  > - prompt: Create shared TypeScript type definitions (Player, RoomState, messages, etc.)
+  > - context: []
+  >
+  > Created [specs/types/game-types.spec.md](../specs/types/game-types.spec.md)
+  > ---
+  >
+  > **MCP** `tessl - create`
+  > - spec: specs/server/room-manager.spec.md
+  > - prompt: Create room manager service for in-memory room/game state management
+  > - context: [".tessl/usage-specs/tessl/npm-sveltejs--kit/docs/index.md"]
+  >
+  > Created [specs/server/room-manager.spec.md](../specs/server/room-manager.spec.md)
+  > ---
+  >
+  > **MCP** `tessl - create`
+  > - spec: specs/server/websocket-handler.spec.md
+  > - prompt: Create WebSocket server handler integrated into SvelteKit hooks
+  > - context: [".tessl/usage-specs/tessl/npm-sveltejs--kit/docs/hooks.md", ".tessl/usage-specs/tessl/npm-ws/docs/websocket-server.md"]
+  >
+  > Created [specs/server/websocket-handler.spec.md](../specs/server/websocket-handler.spec.md)
+  > ---
+  >
+  > **MCP** `tessl - create`
+  > - spec: specs/client/websocket-store.spec.md
+  > - prompt: Create Svelte store for WebSocket connection management
+  > - context: [".tessl/usage-specs/tessl/npm-svelte/docs/stores.md", ".tessl/usage-specs/tessl/npm-svelte/docs/runes.md", ".tessl/usage-specs/tessl/npm-svelte/docs/reactivity.md"]
+  >
+  > Created [specs/client/websocket-store.spec.md](../specs/client/websocket-store.spec.md)
+  > ---
+  >
+  > **MCP** `tessl - create`
+  > - spec: specs/client/landing-page.spec.md
+  > - prompt: Create landing page for creating/joining rooms
+  > - context: [".tessl/usage-specs/tessl/npm-svelte/docs/runes.md", ".tessl/usage-specs/tessl/npm-sveltejs--kit/docs/index.md"]
+  >
+  > Created [specs/client/landing-page.spec.md](../specs/client/landing-page.spec.md)
+  > ---
+  >
+  > **MCP** `tessl - create`
+  > - spec: specs/client/game-room-page.spec.md
+  > - prompt: Create game room page for real-time multiplayer gameplay
+  > - context: [".tessl/usage-specs/tessl/npm-svelte/docs/runes.md", ".tessl/usage-specs/tessl/npm-svelte/docs/lifecycle.md", ".tessl/usage-specs/tessl/npm-sveltejs--kit/docs/index.md"]
+  >
+  > Created [specs/client/game-room-page.spec.md](../specs/client/game-room-page.spec.md)
+  >
+  > All specs created successfully with proper dependencies linked.
 - [ ] Get user feedback on specs before building
 - [ ] Install any new required dependencies
 - [ ] Build specs to generate implementation
