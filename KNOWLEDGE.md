@@ -14,4 +14,10 @@ A deprecated CLI for creating new SvelteKit projects, now replaced by 'sv' packa
 
 A cybernetically enhanced web application framework that compiles to highly optimized JavaScript with reactive state management and component-based architecture.
 
-[docs](.tessl/usage-specs/tessl/npm-svelte/docs/index.md 
+[docs](.tessl/usage-specs/tessl/npm-svelte/docs/index.md)
+
+### @sveltejs/kit@2.37.0
+
+SvelteKit is the fastest way to build Svelte apps with file-based routing, server-side rendering, and multiple deployment adapters
+
+[docs](.tessl/usage-specs/tessl/npm-sveltejs--kit/docs/index.md)

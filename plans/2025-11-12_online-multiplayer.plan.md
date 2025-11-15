@@ -20,7 +20,19 @@ Target state: Online multiplayer with rooms, player names, and shareable links
   > - Disconnect handling: Other player wins
   > - Room life: Temporary only (cheapest option)
 
-- [ ] Research relevant documentation from Knowledge Index
+- [x] Research relevant documentation from Knowledge Index
+  > **Task** Research agent
+  >
+  > Found relevant docs:
+  > - [.tessl/usage-specs/tessl/npm-svelte/docs/stores.md](../.tessl/usage-specs/tessl/npm-svelte/docs/stores.md) - WebSocket store patterns
+  > - [.tessl/usage-specs/tessl/npm-svelte/docs/reactivity.md](../.tessl/usage-specs/tessl/npm-svelte/docs/reactivity.md) - Reactive WebSocket management
+  >
+  > Missing docs needed:
+  > - SvelteKit (API routes, server endpoints)
+  > - WebSocket library (ws or socket.io)
+  > - Google Cloud deployment/adapters
+
+- [ ] Search Tessl registry for missing documentation
 - [ ] Design system architecture (client-server communication, room management)
 - [ ] Create or update specs for:
   - [ ] Room management backend service

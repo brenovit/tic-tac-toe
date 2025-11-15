@@ -6,6 +6,9 @@
     },
     "tessl/npm-svelte": {
       "version": "5.38.0"
+    },
+    "tessl/npm-sveltejs--kit": {
+      "version": "2.37.0"
     }
   }
 }
