@@ -1,6 +1,9 @@
 {
   "name": "tic-tac-toe",
   "dependencies": {
+    "tessl/npm-create-svelte": {
+      "version": "7.0.0"
+    },
     "tessl/npm-svelte": {
       "version": "5.38.0"
     }
