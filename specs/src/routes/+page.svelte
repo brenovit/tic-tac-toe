@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import type { Player, RoomState, CellValue, GameResult, ClientToServerMessage, ServerToClientMessage } from '$lib/types/game-types';
 
 	interface LandingPageState {
 		playerName: string;
@@ -61,14 +62,53 @@
 	}
 
 	async function createRoom(playerName: string): Promise<{ roomId: string }> {
-		// Generate a 6-character room ID
-		const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-		
-		// In a real implementation, this would connect to WebSocket and create room on server
-		// For now, simulate the async operation
-		await new Promise(resolve => setTimeout(resolve, 1000));
-		
-		return { roomId };
+		return new Promise((resolve, reject) => {
+			try {
+				const ws = new WebSocket('ws://localhost:3001');
+				
+				ws.onopen = () => {
+					const message: ClientToServerMessage = {
+						type: 'createRoom',
+						playerName: playerName.trim()
+					};
+					ws.send(JSON.stringify(message));
+				};
+
+				ws.onmessage = (event) => {
+					const message: ServerToClientMessage = JSON.parse(event.data);
+					
+					if (message.type === 'roomCreated') {
+						ws.close();
+						resolve({ roomId: message.roomState.id });
+					} else if (message.type === 'error') {
+						ws.close();
+						reject(new Error(message.message));
+					}
+				};
+
+				ws.onerror = () => {
+					ws.close();
+					reject(new Error('WebSocket connection failed'));
+				};
+
+				ws.onclose = (event) => {
+					if (event.code !== 1000) {
+						reject(new Error('Connection closed unexpectedly'));
+					}
+				};
+
+				// Timeout after 10 seconds
+				setTimeout(() => {
+					if (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN) {
+						ws.close();
+						reject(new Error('Connection timeout'));
+					}
+				}, 10000);
+
+			} catch (error) {
+				reject(error);
+			}
+		});
 	}
 
 	function navigateToRoom(roomId: string, playerName: string): void {
@@ -91,7 +131,7 @@
 			const { roomId } = await createRoom(state.playerName.trim());
 			navigateToRoom(roomId, state.playerName.trim());
 		} catch (error) {
-			state.errors.connection = 'Failed to create room. Please try again.';
+			state.errors.connection = error instanceof Error ? error.message : 'Failed to create room. Please try again.';
 		} finally {
 			state.isCreatingRoom = false;
 		}
