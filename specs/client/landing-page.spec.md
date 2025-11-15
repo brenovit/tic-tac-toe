@@ -96,14 +96,9 @@ function navigateToRoom(roomId: string, playerName: string): void;
 ### Game Types
 
 Type definitions for room IDs and validation rules.
-[@use](../specs/types/game-types.spec.md)
+[@use](../types/game-types.spec.md)
 
 ### SvelteKit Navigation
 
 Client-side navigation functionality.
 [@use](@sveltejs/kit)
-
-### Svelte Runes
-
-Reactive state management using Svelte 5 runes.
-[@use](../specs/client/runes-system.spec.md)

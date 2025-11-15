@@ -160,8 +160,8 @@ interface GameRoomEvents {
 
 ### WebSocket Store
 Real-time communication with game server.
-[@use](../websocket-store.spec.md)
+[@use](websocket-store.spec.md)
 
 ### Game Types
 Type definitions for game state and messages.
-[@use](../../types/game-types.spec.md)
+[@use](../types/game-types.spec.md)
