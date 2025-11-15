@@ -15,7 +15,11 @@ Target state: Online multiplayer with rooms, player names, and shareable links
 
 ## Tasks
 
-- [ ] Interview user to clarify requirements (room persistence, disconnection handling, etc.)
+- [x] Interview user to clarify requirements (room persistence, disconnection handling, etc.)
+  > User selected:
+  > - Disconnect handling: Other player wins
+  > - Room life: Temporary only (cheapest option)
+
 - [ ] Research relevant documentation from Knowledge Index
 - [ ] Design system architecture (client-server communication, room management)
 - [ ] Create or update specs for:
