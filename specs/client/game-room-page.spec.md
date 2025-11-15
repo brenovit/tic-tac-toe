@@ -4,7 +4,7 @@ Game room page component for real-time multiplayer tic-tac-toe with dynamic rout
 
 ## Target
 
-[@generate](../../src/routes/room/[id]/+page.svelte)
+[@describe](../../src/routes/room/[id]/+page.svelte)
 
 ## Capabilities
 
