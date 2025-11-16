@@ -1,12 +1,16 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import type { CreateRoomMessage } from '$lib/types/game-types.js';
 
-  let playerName = '';
-  let roomId = '';
-  let isCreatingRoom = false;
-  let errors: { playerName?: string; roomId?: string; connection?: string } = {};
+  let playerName: string = '';
+  let roomId: string = '';
+  let isCreatingRoom: boolean = false;
+  let errors: {
+    playerName?: string;
+    roomId?: string;
+    connection?: string;
+  } = {};
 
-  // Form validation functions
   function validatePlayerName(name: string): string | null {
     const trimmed = name.trim();
     if (!trimmed) {
@@ -23,158 +27,189 @@
     if (!trimmed) {
       return 'Room ID is required';
     }
-    if (!/^[A-Za-z0-9]{6}$/.test(trimmed)) {
+    if (!/^[a-zA-Z0-9]{6}$/.test(trimmed)) {
       return 'Room ID must be exactly 6 alphanumeric characters';
     }
     return null;
   }
 
-  // Reactive validation
-  $: errors.playerName = validatePlayerName(playerName) || undefined;
-  $: errors.roomId = roomId ? validateRoomId(roomId) || undefined : undefined;
-
-  // Computed properties
-  $: canCreateRoom = !errors.playerName && playerName.trim() !== '' && !isCreatingRoom;
-  $: canJoinRoom = !errors.playerName && !errors.roomId && playerName.trim() !== '' && roomId.trim() !== '';
-
-  // API operations
   async function createRoom(playerName: string): Promise<{ roomId: string; playerId: string }> {
     const response = await fetch('/api/rooms', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ playerName: playerName.trim() })
+      body: JSON.stringify({ playerName })
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'Failed to create room' }));
-      throw new Error(errorData.message || 'Failed to create room');
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to create room');
     }
 
-    return response.json();
+    return await response.json();
   }
 
-  // Navigation helper
   function navigateToRoom(roomId: string, playerName: string, playerId?: string): void {
-    const params = new URLSearchParams();
-    params.set('playerName', playerName);
+    const params = new URLSearchParams({
+      name: playerName.trim()
+    });
+    
     if (playerId) {
       params.set('playerId', playerId);
     }
+
     goto(`/room/${roomId}?${params.toString()}`);
   }
 
-  // Event handlers
+  function handlePlayerNameInput(): void {
+    const error = validatePlayerName(playerName);
+    if (error) {
+      errors.playerName = error;
+    } else {
+      delete errors.playerName;
+    }
+    errors = { ...errors };
+  }
+
+  function handleRoomIdInput(): void {
+    const error = validateRoomId(roomId);
+    if (error) {
+      errors.roomId = error;
+    } else {
+      delete errors.roomId;
+    }
+    errors = { ...errors };
+  }
+
   async function handleCreateRoom(): Promise<void> {
-    if (!canCreateRoom) return;
+    const nameError = validatePlayerName(playerName);
+    if (nameError) {
+      errors.playerName = nameError;
+      errors = { ...errors };
+      return;
+    }
+
     isCreatingRoom = true;
-    errors.connection = undefined;
+    delete errors.connection;
+    errors = { ...errors };
 
     try {
-      const result = await createRoom(playerName);
+      const result = await createRoom(playerName.trim());
       navigateToRoom(result.roomId, playerName.trim(), result.playerId);
     } catch (error) {
       errors.connection = error instanceof Error ? error.message : 'Failed to create room';
+      errors = { ...errors };
     } finally {
       isCreatingRoom = false;
     }
   }
 
   function handleJoinRoom(): void {
-    if (!canJoinRoom) return;
+    const nameError = validatePlayerName(playerName);
+    const idError = validateRoomId(roomId);
+    
+    if (nameError) {
+      errors.playerName = nameError;
+    }
+    if (idError) {
+      errors.roomId = idError;
+    }
+    
+    if (nameError || idError) {
+      errors = { ...errors };
+      return;
+    }
+
     navigateToRoom(roomId.trim(), playerName.trim());
   }
 
-  function handleFormSubmit(event: Event): void {
-    event.preventDefault();
-  }
+  $: canCreateRoom = !validatePlayerName(playerName) && !isCreatingRoom;
+  $: canJoinRoom = !validatePlayerName(playerName) && !validateRoomId(roomId);
 </script>
 
 <svelte:head>
-  <title>Tic-Tac-Toe - Multiplayer Game</title>
+  <title>Tic-Tac-Toe - Multiplayer Online</title>
 </svelte:head>
 
 <main class="landing-container">
-  <div class="content">
-    <h1 class="title">TIC-TAC-TOE</h1>
-    <p class="subtitle">Multiplayer Online Game</p>
+  <h1 class="title">TIC-TAC-TOE</h1>
+  <p class="subtitle">Multiplayer Online</p>
 
-    <form class="form" on:submit={handleFormSubmit}>
-      <div class="input-group">
-        <label for="playerName" class="label">Your Name</label>
-        <input
-          id="playerName"
-          type="text"
-          bind:value={playerName}
-          placeholder="Enter your display name"
-          class="input {errors.playerName ? 'error' : ''}"
-          maxlength="20"
-          autocomplete="off"
-          autofocus
-        />
-        {#if errors.playerName}
-          <span class="error-message">{errors.playerName}</span>
-        {/if}
-      </div>
-
-      <div class="actions">
-        <div class="create-room-section">
-          <h2 class="section-title">Start New Game</h2>
-          <button
-            type="button"
-            class="primary-button {!canCreateRoom ? 'disabled' : ''}"
-            disabled={!canCreateRoom}
-            on:click={handleCreateRoom}
-          >
-            {#if isCreatingRoom}
-              <span class="loading-spinner"></span>
-              Creating Room...
-            {:else}
-              Create Room
-            {/if}
-          </button>
-        </div>
-
-        <div class="divider">
-          <span>OR</span>
-        </div>
-
-        <div class="join-room-section">
-          <h2 class="section-title">Join Existing Game</h2>
-          <div class="input-group">
-            <label for="roomId" class="label">Room ID</label>
-            <input
-              id="roomId"
-              type="text"
-              bind:value={roomId}
-              placeholder="Enter 6-character room ID"
-              class="input {errors.roomId ? 'error' : ''}"
-              maxlength="6"
-              autocomplete="off"
-              style="text-transform: uppercase;"
-            />
-            {#if errors.roomId}
-              <span class="error-message">{errors.roomId}</span>
-            {/if}
-          </div>
-          <button
-            type="button"
-            class="secondary-button {!canJoinRoom ? 'disabled' : ''}"
-            disabled={!canJoinRoom}
-            on:click={handleJoinRoom}
-          >
-            Join Room
-          </button>
-        </div>
-      </div>
-
-      {#if errors.connection}
-        <div class="connection-error">
-          {errors.connection}
-        </div>
+  <div class="form-container">
+    <div class="input-group">
+      <label for="playerName">Your Name:</label>
+      <input
+        id="playerName"
+        type="text"
+        bind:value={playerName}
+        on:input={handlePlayerNameInput}
+        placeholder="Enter your name"
+        maxlength="20"
+        class:error={errors.playerName}
+        autocomplete="off"
+        autofocus
+        aria-describedby={errors.playerName ? 'playerName-error' : undefined}
+      />
+      {#if errors.playerName}
+        <span id="playerName-error" class="error-message">{errors.playerName}</span>
       {/if}
-    </form>
+    </div>
+
+    <div class="actions">
+      <div class="create-section">
+        <h3>Create New Game</h3>
+        <button
+          class="create-button"
+          disabled={!canCreateRoom}
+          on:click={handleCreateRoom}
+          aria-label={isCreatingRoom ? 'Creating room...' : 'Create new room'}
+        >
+          {#if isCreatingRoom}
+            Creating...
+          {:else}
+            Create Room
+          {/if}
+        </button>
+      </div>
+
+      <div class="divider">OR</div>
+
+      <div class="join-section">
+        <h3>Join Existing Game</h3>
+        <div class="input-group">
+          <label for="roomId">Room ID:</label>
+          <input
+            id="roomId"
+            type="text"
+            bind:value={roomId}
+            on:input={handleRoomIdInput}
+            placeholder="Enter 6-character room ID"
+            maxlength="6"
+            class:error={errors.roomId}
+            autocomplete="off"
+            aria-describedby={errors.roomId ? 'roomId-error' : undefined}
+          />
+          {#if errors.roomId}
+            <span id="roomId-error" class="error-message">{errors.roomId}</span>
+          {/if}
+        </div>
+        <button
+          class="join-button"
+          disabled={!canJoinRoom}
+          on:click={handleJoinRoom}
+          aria-label="Join existing room"
+        >
+          Join Room
+        </button>
+      </div>
+    </div>
+
+    {#if errors.connection}
+      <div class="connection-error" role="alert" aria-live="polite">
+        {errors.connection}
+      </div>
+    {/if}
   </div>
 </main>
 
@@ -183,212 +218,200 @@
     margin: 0;
     padding: 0;
     background: radial-gradient(circle at center, #1a1a1a 0%, #000000 100%);
+    font-family: 'Arial', sans-serif;
     color: #00ffff;
-    font-family: Arial, sans-serif;
     min-height: 100vh;
   }
 
   .landing-container {
-    min-height: 100vh;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     padding: 2rem;
-  }
-
-  .content {
-    max-width: 500px;
-    width: 100%;
     text-align: center;
+    min-height: 100vh;
   }
 
   .title {
-    font-size: 3rem;
+    font-size: clamp(2rem, 5vw, 3rem);
     color: #00ffff;
     text-shadow:
       0 0 20px #00ffff,
       0 0 40px #00ffff,
       0 0 60px #00ffff;
-    margin: 0 0 0.5rem 0;
     letter-spacing: 0.2em;
+    margin-bottom: 0.5rem;
   }
 
   .subtitle {
-    font-size: 1.2rem;
+    font-size: clamp(1rem, 2.5vw, 1.2rem);
     color: #00ffff;
     text-shadow: 0 0 10px #00ffff;
-    margin: 0 0 3rem 0;
+    margin-bottom: 2rem;
     opacity: 0.8;
   }
 
-  .form {
-    display: flex;
-    flex-direction: column;
-    gap: 2rem;
+  .form-container {
+    background: rgba(0, 0, 0, 0.5);
+    border: 2px solid #00ffff;
+    border-radius: 10px;
+    padding: 2rem;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
   }
 
   .input-group {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: #00ffff;
+    font-weight: bold;
     text-align: left;
   }
 
-  .label {
-    font-size: 1rem;
-    color: #00ffff;
-    text-shadow: 0 0 5px #00ffff;
-    font-weight: bold;
-  }
-
-  .input {
-    padding: 12px 16px;
+  input {
+    width: 100%;
+    padding: 0.8rem;
     font-size: 1rem;
     background: #000;
-    border: 2px solid #333;
+    border: 2px solid #00ffff;
+    color: #00ffff;
     border-radius: 5px;
-    color: #fff;
     transition: all 0.3s ease;
+    box-sizing: border-box;
   }
 
-  .input:focus {
+  input:focus {
     outline: none;
-    border-color: #00ffff;
-    box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+    box-shadow: 0 0 15px #00ffff;
   }
 
-  .input.error {
+  input.error {
     border-color: #ff0080;
-    box-shadow: 0 0 15px rgba(255, 0, 128, 0.3);
+    box-shadow: 0 0 10px rgba(255, 0, 128, 0.5);
   }
 
   .error-message {
-    font-size: 0.875rem;
+    display: block;
     color: #ff0080;
-    text-shadow: 0 0 5px #ff0080;
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+    text-align: left;
   }
 
   .actions {
     display: flex;
     flex-direction: column;
-    gap: 2rem;
+    gap: 1.5rem;
   }
 
-  .create-room-section,
-  .join-room-section {
+  .create-section,
+  .join-section {
     display: flex;
     flex-direction: column;
     gap: 1rem;
   }
 
-  .section-title {
-    font-size: 1.3rem;
-    color: #00ffff;
-    text-shadow: 0 0 10px #00ffff;
+  h3 {
     margin: 0;
-  }
-
-  .primary-button,
-  .secondary-button {
-    padding: 12px 24px;
-    font-size: 1.1rem;
-    font-weight: bold;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    border: 2px solid;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    min-height: 48px;
-  }
-
-  .primary-button {
-    background: #00ffff;
-    border-color: #00ffff;
-    color: #000;
-    text-shadow: none;
-  }
-
-  .primary-button:hover:not(.disabled) {
-    background: #00cccc;
-    border-color: #00cccc;
-    box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
-  }
-
-  .secondary-button {
-    background: #000;
-    border-color: #00ffff;
     color: #00ffff;
-    text-shadow: 0 0 10px #00ffff;
+    font-size: 1.1rem;
   }
 
-  .secondary-button:hover:not(.disabled) {
+  button {
+    padding: 0.8rem 1.5rem;
+    font-size: 1rem;
+    background: #000;
+    border: 2px solid #00ffff;
+    color: #00ffff;
+    cursor: pointer;
+    border-radius: 5px;
+    transition: all 0.3s ease;
+    text-shadow: 0 0 5px #00ffff;
+    min-height: 48px;
+    touch-action: manipulation;
+  }
+
+  button:hover:not(:disabled) {
     background: #00ffff;
     color: #000;
+    box-shadow:
+      0 0 20px rgba(0, 255, 255, 0.5),
+      0 0 40px rgba(0, 255, 255, 0.3);
     text-shadow: none;
-    box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
   }
 
-  .primary-button.disabled,
-  .secondary-button.disabled {
+  button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-    box-shadow: none;
-  }
-
-  .primary-button.disabled:hover,
-  .secondary-button.disabled:hover {
     background: #000;
     color: #666;
     border-color: #666;
     text-shadow: none;
   }
 
-  .primary-button.disabled:hover {
-    background: #666;
-    color: #000;
+  .create-button {
+    background: #000;
+    border-color: #00ff80;
+    color: #00ff80;
+    text-shadow: 0 0 5px #00ff80;
   }
 
-  .loading-spinner {
-    width: 16px;
-    height: 16px;
-    border: 2px solid transparent;
-    border-top: 2px solid #000;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
+  .create-button:hover:not(:disabled) {
+    background: #00ff80;
+    color: #000;
+    box-shadow:
+      0 0 20px rgba(0, 255, 128, 0.5),
+      0 0 40px rgba(0, 255, 128, 0.3);
   }
 
   .divider {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
+    text-align: center;
     color: #666;
-    font-size: 0.9rem;
+    font-weight: bold;
+    position: relative;
   }
 
   .divider::before,
   .divider::after {
     content: '';
-    flex: 1;
+    position: absolute;
+    top: 50%;
+    width: 30%;
     height: 1px;
-    background: #333;
+    background: #666;
+  }
+
+  .divider::before {
+    left: 0;
+  }
+
+  .divider::after {
+    right: 0;
   }
 
   .connection-error {
-    padding: 1rem;
+    margin-top: 1rem;
+    padding: 0.8rem;
     background: rgba(255, 0, 128, 0.1);
     border: 1px solid #ff0080;
     border-radius: 5px;
     color: #ff0080;
-    text-shadow: 0 0 5px #ff0080;
     font-size: 0.9rem;
   }
 
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
+  @media (max-width: 768px) {
+    .landing-container {
+      padding: 1.5rem;
+    }
+
+    .form-container {
+      padding: 1.5rem;
     }
   }
 
@@ -397,27 +420,18 @@
       padding: 1rem;
     }
 
-    .title {
-      font-size: 2rem;
+    .form-container {
+      padding: 1rem;
     }
 
-    .subtitle {
-      font-size: 1rem;
-    }
-
-    .section-title {
-      font-size: 1.1rem;
-    }
-
-    .primary-button,
-    .secondary-button {
-      font-size: 1rem;
-      padding: 10px 20px;
-    }
-
-    .input {
+    input,
+    button {
       font-size: 0.9rem;
-      padding: 10px 14px;
+      padding: 0.7rem;
+    }
+
+    button {
+      min-height: 44px;
     }
   }
 </style>

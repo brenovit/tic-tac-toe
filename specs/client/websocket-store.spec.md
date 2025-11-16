@@ -16,15 +16,18 @@ Manages WebSocket connection lifecycle with automatic reconnection.
 - Closes WebSocket connection cleanly
 - Automatically reconnects on unexpected disconnection with exponential backoff
 - Uses browser's native WebSocket API
+- isConnected(): Returns true if WebSocket is currently connected and ready
 
 ### Store State Management
 
-Maintains reactive game state using Svelte 5 runes.
+Maintains reactive game state using Svelte's writable stores (svelte/store).
 
 - Connection status: 'disconnected' | 'connecting' | 'connected' | 'error'
 - Current room state: RoomState | null
 - Player info: {playerId: string, symbol: 'X' | 'O'} | null
 - Error message: string | null
+- Must use writable stores from 'svelte/store', not Svelte 5 runes
+- State must be accessible in regular TypeScript files (.ts)
 
 ### Message Sending
 
@@ -33,6 +36,7 @@ Sends typed messages to the server for game actions.
 - createRoom(playerName: string): Creates a new game room
 - joinRoom(roomId: string, playerName: string): Joins an existing room
 - makeMove(position: number): Makes a move at the specified position
+- send(message: ClientToServerMessage): Sends a raw message to the server
 
 ### Message Receiving
 
@@ -45,6 +49,7 @@ Handles incoming server messages with proper state updates.
 - 'game-over': Updates room state with winner
 - 'player-disconnected': Shows disconnect notification
 - 'error': Stores error message
+- subscribe(callback: (message: ServerToClientMessage) => void): Subscribes to raw server messages, returns unsubscribe function
 
 ### Reactive Helpers
 
@@ -78,20 +83,25 @@ interface WebSocketStore {
   readonly roomState: RoomState | null;
   readonly playerInfo: { playerId: string; symbol: 'X' | 'O' } | null;
   readonly errorMessage: string | null;
-  
+
   // Derived helpers
   readonly isMyTurn: boolean;
   readonly canMakeMove: (position: number) => boolean;
-  
+
   // Connection methods
   connect(): void;
   disconnect(): void;
-  
+  isConnected(): boolean;
+
+  // Message handling
+  send(message: ClientToServerMessage): void;
+  subscribe(callback: (message: ServerToClientMessage) => void): () => void;
+
   // Game actions
   createRoom(playerName: string): void;
   joinRoom(roomId: string, playerName: string): void;
   makeMove(position: number): void;
-  
+
   // Cleanup
   destroy(): void;
 }
@@ -105,6 +115,11 @@ function createWebSocketStore(serverUrl?: string): WebSocketStore;
 ```
 
 ## Dependencies
+
+### Svelte Store
+
+Reactive store primitives for state management.
+[@use](https://esm.sh/svelte@5.38.8/store)
 
 ### Game Types
 

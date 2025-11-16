@@ -1,111 +1,83 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  import { page } from '$app/stores';
-  import { goto } from '$app/navigation';
-  import { browser } from '$app/environment';
-  import { websocketStore } from '$lib/websocket-store';
-  import type { CellValue, RoomState, Player, GameResult } from '$lib/types/game-types';
+  import { onMount, onDestroy } from "svelte";
+  import { page } from "$app/stores";
+  import { goto } from "$app/navigation";
+  import { browser } from "$app/environment";
+  import { websocketStore } from "$lib/websocket-store";
+  import type {
+    RoomState,
+    Player,
+    CellValue,
+    ClientToServerMessage,
+    ServerToClientMessage,
+  } from "$lib/types/game-types";
 
-  let roomId: string;
-  let playerName: string | null = null;
-  let copied = false;
+  // Extract room ID from URL parameters
+  $: roomId = $page.params.id;
+  $: playerName = $page.url.searchParams.get("name") || $page.state?.playerName;
+
+  // Redirect if no player name provided
+  $: if (browser && !playerName) {
+    goto("/");
+  }
 
   // Component state
-  let connectionStatus: 'connecting' | 'connected' | 'disconnected' | 'error' = 'connecting';
-  let gameState: 'waiting' | 'playing' | 'finished' | 'disconnected' = 'waiting';
+  let connectionStatus: "connecting" | "connected" | "disconnected" | "error" =
+    "connecting";
+  let gameState: "waiting" | "playing" | "finished" | "disconnected" =
+    "waiting";
   let board: CellValue[] = Array(9).fill(null);
-  let currentPlayer: 'X' | 'O' | null = null;
-  let players: {
-    X?: { name: string; connected: boolean };
-    O?: { name: string; connected: boolean };
-  } = {};
-  let winner: 'X' | 'O' | 'draw' | null = null;
+  let currentPlayer: "X" | "O" | null = null;
+  let players: { X?: Player; O?: Player } = {};
+  let winner: "X" | "O" | "draw" | null = null;
   let winningCells: number[] = [];
-  let playerSymbol: 'X' | 'O' | null = null;
+  let playerSymbol: "X" | "O" | null = null;
   let error: string | null = null;
+  let playerId: string | null = null;
+  let copySuccess = false;
 
-  let ws = websocketStore;
-  let pageUnsub: () => void;
-  let wsUnsub: () => void;
-
-  onMount(() => {
-    if (!browser) return;
-
-    pageUnsub = page.subscribe(p => {
-      roomId = p.params.id;
-      playerName = p.url.searchParams.get('playerName') || p.state?.playerName;
-    });
-
-    // Redirect if no player name provided
-    if (!playerName) {
-      goto('/');
-      return;
-    }
-
-    // Validate room ID format
-    if (!roomId || !/^[A-Za-z0-9_-]+$/.test(roomId)) {
-      error = 'Invalid room ID';
-      connectionStatus = 'error';
-      return;
-    }
-
-    // Connect to WebSocket and set up message handling
-    ws.connect();
-    wsUnsub = ws.subscribe(handleWebSocketMessage);
-
-    // Send join room message
-    ws.send({
-      type: 'joinRoom',
-      roomId,
-      playerName: playerName!
-    });
-  });
-
-  onDestroy(() => {
-    if (wsUnsub) wsUnsub();
-    if (pageUnsub) pageUnsub();
-    ws.disconnect();
-  });
-
-  function handleWebSocketMessage(message: any) {
-    if (!message) return;
-
+  // WebSocket message handler
+  function handleMessage(message: ServerToClientMessage) {
     switch (message.type) {
-      case 'connected':
-        connectionStatus = 'connected';
-        break;
-      
-      case 'disconnected':
-        connectionStatus = 'disconnected';
-        if (gameState === 'playing') {
-          gameState = 'disconnected';
-        }
+      case "roomCreated":
+        connectionStatus = "connected";
+        updateGameState(message.roomState);
+        playerId = message.playerId;
         break;
 
-      case 'roomCreated':
-      case 'playerJoined':
-      case 'gameStart':
-      case 'moveMade':
+      case "playerJoined":
         updateGameState(message.roomState);
         break;
 
-      case 'gameOver':
+      case "gameStart":
+        gameState = "playing";
         updateGameState(message.roomState);
-        gameState = 'finished';
+        break;
+
+      case "moveMade":
+        updateGameState(message.roomState);
+        break;
+
+      case "gameOver":
+        gameState = "finished";
         winner = message.result.winner;
+        updateGameState(message.roomState);
         calculateWinningCells();
         break;
 
-      case 'playerDisconnected':
-        updateGameState(message.roomState);
-        if (gameState === 'playing') {
-          gameState = 'disconnected';
+      case "playerDisconnected":
+        if (message.roomState.status === "finished") {
+          gameState = "finished";
+          winner = playerSymbol;
+        } else {
+          gameState = "disconnected";
         }
+        updateGameState(message.roomState);
         break;
 
-      case 'error':
+      case "error":
         error = message.message;
-        connectionStatus = 'error';
+        connectionStatus = "error";
         break;
     }
   }
@@ -113,460 +85,431 @@
   function updateGameState(roomState: RoomState) {
     board = [...roomState.board];
     currentPlayer = roomState.currentTurn;
-    
-    // Map players array to our players object
+
+    // Update players object
     players = {};
-    roomState.players.forEach((player: Player) => {
+    roomState.players.forEach((player) => {
       if (player) {
-        players[player.symbol] = {
-          name: player.name,
-          connected: player.connected
-        };
-        
-        // Set player symbol if this is our player
-        if (player.name === playerName) {
+        players[player.symbol] = player;
+        if (player.id === playerId) {
           playerSymbol = player.symbol;
         }
       }
     });
 
     // Update game state based on room status
-    switch (roomState.status) {
-      case 'waiting':
-        gameState = 'waiting';
-        break;
-      case 'playing':
-        gameState = 'playing';
-        break;
-      case 'finished':
-        gameState = 'finished';
-        winner = roomState.winner || null;
-        calculateWinningCells();
-        break;
+    if (roomState.status === "waiting") {
+      gameState = "waiting";
+    } else if (roomState.status === "playing") {
+      gameState = "playing";
+    } else if (roomState.status === "finished") {
+      gameState = "finished";
+      winner = roomState.winner || null;
     }
-
-    connectionStatus = 'connected';
-    error = null;
   }
 
   function calculateWinningCells() {
     const winPatterns = [
-      [0, 1, 2], [3, 4, 5], [6, 7, 8], // rows
-      [0, 3, 6], [1, 4, 7], [2, 5, 8], // columns
-      [0, 4, 8], [2, 4, 6] // diagonals
+      [0, 1, 2],
+      [3, 4, 5],
+      [6, 7, 8], // rows
+      [0, 3, 6],
+      [1, 4, 7],
+      [2, 5, 8], // columns
+      [0, 4, 8],
+      [2, 4, 6], // diagonals
     ];
 
     for (const pattern of winPatterns) {
       const [a, b, c] = pattern;
       if (board[a] && board[a] === board[b] && board[a] === board[c]) {
         winningCells = pattern;
-        return;
+        break;
       }
     }
-    winningCells = [];
   }
 
-  function onCellClick(index: number) {
-    // Validate move conditions
+  function handleCellClick(index: number) {
+    // Validate move
     if (
-      gameState !== 'playing' ||
-      currentPlayer !== playerSymbol ||
+      gameState !== "playing" ||
       board[index] !== null ||
-      connectionStatus !== 'connected'
+      currentPlayer !== playerSymbol ||
+      connectionStatus !== "connected"
     ) {
       return;
     }
 
-    // Optimistic UI update
-    board[index] = playerSymbol;
-    
     // Send move to server
-    ws.send({
-      type: 'makeMove',
+    const message: ClientToServerMessage = {
+      type: "makeMove",
       roomId,
-      cellIndex: index
-    });
+      cellIndex: index,
+    };
+    websocketStore.send(message);
   }
 
-  async function onCopyLink() {
-    if (!browser) return;
-    
+  async function handleCopyLink() {
     try {
-      await navigator.clipboard.writeText(window.location.href);
-      copied = true;
-      setTimeout(() => (copied = false), 2000);
+      const url = `${window.location.origin}/room/${roomId}?name=`;
+      await navigator.clipboard.writeText(url);
+      copySuccess = true;
+      setTimeout(() => (copySuccess = false), 2000);
     } catch (err) {
-      console.error('Failed to copy link:', err);
+      console.error("Failed to copy link:", err);
     }
   }
 
-  function onNewGame() {
-    goto('/');
+  function handleNewGame() {
+    goto("/");
   }
 
-  function onBackToHome() {
-    goto('/');
+  function handleBackToHome() {
+    goto("/");
   }
 
-  function handleKeyDown(event: KeyboardEvent, index: number) {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      onCellClick(index);
+  onMount(() => {
+    if (!browser || !roomId || !playerName) return;
+
+    connectionStatus = "connecting";
+
+    // Subscribe to WebSocket messages
+    const unsubscribe = websocketStore.subscribe((message) => {
+      if (message) {
+        handleMessage(message);
+      }
+    });
+
+    // Connect and join room
+    websocketStore.connect();
+
+    // Send join room message when connected
+    const checkConnection = setInterval(() => {
+      if (websocketStore.isConnected()) {
+        const joinMessage: ClientToServerMessage = {
+          type: "joinRoom",
+          roomId,
+          playerName,
+        };
+        websocketStore.send(joinMessage);
+        clearInterval(checkConnection);
+      }
+    }, 100);
+
+    return () => {
+      unsubscribe();
+      clearInterval(checkConnection);
+    };
+  });
+
+  onDestroy(() => {
+    if (browser) {
+      websocketStore.disconnect();
     }
-  }
-
-  $: roomUrl = browser ? window.location.href : '';
+  });
 </script>
 
 <svelte:head>
-  <title>Tic Tac Toe - Room {roomId}</title>
+  <title>Room {roomId} - Tic Tac Toe</title>
 </svelte:head>
 
-<main class="game-room">
-  {#if connectionStatus === 'connecting'}
-    <div class="status" role="status" aria-live="polite">
-      <div class="loading">
-        <p>Connecting to game...</p>
-        <div class="spinner" aria-hidden="true"></div>
-      </div>
+<div class="game-room">
+  {#if connectionStatus === "connecting"}
+    <div class="status-message">
+      <div class="loading">Connecting to game...</div>
     </div>
-  {:else if connectionStatus === 'error'}
-    <div class="status error" role="alert">
-      <h2>Connection Error</h2>
-      <p>{error || 'Failed to connect to game server'}</p>
-      <button on:click={onBackToHome} class="primary">Back to Home</button>
+  {:else if error}
+    <div class="error-state">
+      <h2>Error</h2>
+      <p>{error}</p>
+      <button on:click={handleBackToHome} class="button">Back to Home</button>
     </div>
-  {:else if gameState === 'waiting'}
-    <div class="status waiting" role="status" aria-live="polite">
+  {:else if gameState === "waiting"}
+    <div class="waiting-state">
       <h2>Waiting for opponent...</h2>
-      <div class="share-room">
-        <p>Share this link to invite a friend:</p>
-        <div class="url-container">
-          <code class="room-url">{roomUrl}</code>
-          <button 
-            on:click={onCopyLink} 
-            class="copy-btn"
-            aria-label="Copy room link to clipboard"
-          >
-            {copied ? '✓ Copied!' : '📋 Copy Link'}
-          </button>
+      <div class="room-info">
+        <p>Room ID: <code>{roomId}</code></p>
+        <div class="share-link">
+          <p>Share this link with your opponent:</p>
+          <div class="link-container">
+            <input
+              type="text"
+              value="{window?.location?.origin}/room/{roomId}?name="
+              readonly
+              class="link-input"
+            />
+            <button
+              on:click={handleCopyLink}
+              class="copy-button"
+              class:success={copySuccess}
+            >
+              {copySuccess ? "Copied!" : "Copy Link"}
+            </button>
+          </div>
         </div>
       </div>
       {#if players.X}
         <div class="player-info">
-          <p>Player: <strong>{players.X.name}</strong> (X)</p>
+          <p>Player X: {players.X.name} {players.X.connected ? "🟢" : "🔴"}</p>
         </div>
       {/if}
     </div>
   {:else}
-    <div class="game-area">
+    <div class="game-active">
       <!-- Player Information Panel -->
-      <div class="players-panel" role="region" aria-label="Player information">
-        <h2>Players</h2>
-        <div class="players-grid">
-          {#each ['X', 'O'] as symbol}
-            <div 
-              class="player-card" 
-              class:active={currentPlayer === symbol && gameState === 'playing'}
-              class:current-player={playerSymbol === symbol}
-            >
-              <div class="player-symbol">{symbol}</div>
-              <div class="player-details">
-                <div class="player-name">
-                  {players[symbol]?.name || 'Waiting...'}
-                </div>
-                <div class="connection-status">
-                  <span 
-                    class="status-indicator" 
-                    class:connected={players[symbol]?.connected}
-                    aria-label={players[symbol]?.connected ? 'Connected' : 'Disconnected'}
-                  ></span>
-                  {players[symbol]?.connected ? 'Connected' : 'Disconnected'}
-                </div>
-              </div>
-              {#if currentPlayer === symbol && gameState === 'playing'}
-                <div class="turn-indicator" aria-label="Current turn">
-                  ← Your turn
-                </div>
-              {/if}
-            </div>
-          {/each}
+      <div class="players-panel">
+        <div class="player" class:active={currentPlayer === "X"}>
+          <span class="symbol">X</span>
+          <span class="name">{players.X?.name || "Player X"}</span>
+          <span class="status">{players.X?.connected ? "🟢" : "🔴"}</span>
+        </div>
+        <div class="vs">vs</div>
+        <div class="player" class:active={currentPlayer === "O"}>
+          <span class="symbol">O</span>
+          <span class="name">{players.O?.name || "Player O"}</span>
+          <span class="status">{players.O?.connected ? "🟢" : "🔴"}</span>
         </div>
       </div>
 
-      <!-- Game Board -->
-      {#if gameState === 'playing' || gameState === 'finished'}
-        <div class="board-container">
-          <h2>Game Board</h2>
-          <div 
-            class="board" 
-            role="grid" 
-            aria-label="Tic Tac Toe game board"
-            class:finished={gameState === 'finished'}
-          >
-            {#each board as cell, i}
-              <button
-                class="cell"
-                class:winning={winningCells.includes(i)}
-                class:clickable={gameState === 'playing' && currentPlayer === playerSymbol && !cell}
-                role="gridcell"
-                tabindex={gameState === 'playing' && currentPlayer === playerSymbol && !cell ? 0 : -1}
-                aria-label={cell ? `Cell ${i + 1}: ${cell}` : `Cell ${i + 1}: empty`}
-                on:click={() => onCellClick(i)}
-                on:keydown={(e) => handleKeyDown(e, i)}
-                disabled={gameState !== 'playing' || currentPlayer !== playerSymbol || cell !== null}
-              >
-                <span class="cell-content" aria-hidden="true">
-                  {cell || ''}
-                </span>
-              </button>
-            {/each}
-          </div>
-          
-          {#if gameState === 'playing'}
-            <div class="game-status" role="status" aria-live="polite">
-              {#if currentPlayer === playerSymbol}
-                <p class="turn-message">Your turn - Make your move!</p>
-              {:else}
-                <p class="turn-message">Waiting for {players[currentPlayer]?.name || 'opponent'}...</p>
-              {/if}
-            </div>
-          {/if}
-        </div>
-      {/if}
-
-      <!-- Game Result -->
-      {#if gameState === 'finished'}
-        <div class="game-result" role="status" aria-live="polite">
-          <h2>Game Over!</h2>
-          {#if winner === 'draw'}
-            <p class="result-message">It's a draw! Great game!</p>
-          {:else if winner === playerSymbol}
-            <p class="result-message win">🎉 You won! Congratulations!</p>
+      <!-- Game Status -->
+      {#if gameState === "playing"}
+        <div class="turn-indicator">
+          {#if currentPlayer === playerSymbol}
+            Your turn
           {:else}
-            <p class="result-message lose">You lost. Better luck next time!</p>
+            {players[currentPlayer]?.name || `Player ${currentPlayer}`}'s turn
           {/if}
-          <button on:click={onNewGame} class="primary">Play Again</button>
         </div>
-      {:else if gameState === 'disconnected'}
-        <div class="game-result disconnected" role="status" aria-live="polite">
-          <h2>Opponent Disconnected</h2>
-          <p class="result-message">Your opponent has left the game. You win by default!</p>
-          <button on:click={onNewGame} class="primary">New Game</button>
+      {:else if gameState === "finished"}
+        <div class="game-result">
+          {#if winner === "draw"}
+            It's a draw!
+          {:else if winner === playerSymbol}
+            You win! 🎉
+          {:else}
+            {players[winner]?.name || `Player ${winner}`} wins!
+          {/if}
         </div>
+      {:else if gameState === "disconnected"}
+        <div class="game-result">Opponent disconnected - You win! 🎉</div>
       {/if}
 
-      <!-- Error Display -->
-      {#if error && connectionStatus === 'connected'}
-        <div class="error-message" role="alert">
-          <p>⚠️ {error}</p>
-          <button on:click={() => error = null} class="small">Dismiss</button>
+      <!-- Game Board -->
+      <div
+        class="board"
+        class:disabled={gameState !== "playing" ||
+          currentPlayer !== playerSymbol}
+      >
+        {#each board as cell, index}
+          <button
+            class="cell"
+            class:winning={winningCells.includes(index)}
+            class:clickable={gameState === "playing" &&
+              cell === null &&
+              currentPlayer === playerSymbol}
+            on:click={() => handleCellClick(index)}
+            disabled={gameState !== "playing" ||
+              cell !== null ||
+              currentPlayer !== playerSymbol}
+            aria-label="Cell {index + 1}"
+          >
+            {cell || ""}
+          </button>
+        {/each}
+      </div>
+
+      <!-- Game Actions -->
+      {#if gameState === "finished" || gameState === "disconnected"}
+        <div class="game-actions">
+          <button on:click={handleNewGame} class="button primary"
+            >New Game</button
+          >
         </div>
       {/if}
     </div>
   {/if}
-</main>
+</div>
 
 <style>
   .game-room {
-    max-width: 800px;
+    max-width: 600px;
     margin: 0 auto;
-    padding: 1rem;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  }
-
-  .status {
-    text-align: center;
     padding: 2rem;
-    border-radius: 8px;
-    margin: 2rem 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
   }
 
-  .status.waiting {
-    background: #f8f9fa;
-    border: 2px solid #e9ecef;
-  }
-
-  .status.error {
-    background: #fff5f5;
-    border: 2px solid #fed7d7;
-    color: #c53030;
+  .status-message {
+    text-align: center;
+    font-size: 1.2rem;
   }
 
   .loading {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1rem;
+    animation: pulse 1.5s ease-in-out infinite;
   }
 
-  .spinner {
-    width: 24px;
-    height: 24px;
-    border: 3px solid #f3f3f3;
-    border-top: 3px solid #3498db;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
   }
 
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+  .error-state {
+    text-align: center;
   }
 
-  .share-room {
+  .error-state h2 {
+    color: #ef4444;
+    margin-bottom: 1rem;
+  }
+
+  .waiting-state {
+    text-align: center;
+  }
+
+  .room-info {
     margin: 2rem 0;
   }
 
-  .url-container {
-    display: flex;
-    gap: 1rem;
-    align-items: center;
-    justify-content: center;
-    flex-wrap: wrap;
-    margin: 1rem 0;
-  }
-
-  .room-url {
-    background: #f1f3f4;
-    padding: 0.5rem 1rem;
-    border-radius: 4px;
+  .room-info code {
+    background: #f3f4f6;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
     font-family: monospace;
-    font-size: 0.9rem;
-    word-break: break-all;
-    max-width: 300px;
   }
 
-  .copy-btn {
-    background: #4285f4;
+  .share-link {
+    margin-top: 1.5rem;
+  }
+
+  .link-container {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .link-input {
+    flex: 1;
+    padding: 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    font-family: monospace;
+    font-size: 0.875rem;
+    min-width: 200px;
+  }
+
+  .copy-button {
+    padding: 0.75rem 1rem;
+    background: #3b82f6;
     color: white;
     border: none;
-    padding: 0.5rem 1rem;
-    border-radius: 4px;
+    border-radius: 0.5rem;
     cursor: pointer;
-    font-size: 0.9rem;
     transition: background-color 0.2s;
   }
 
-  .copy-btn:hover {
-    background: #3367d6;
+  .copy-button:hover {
+    background: #2563eb;
   }
 
-  .game-area {
-    display: flex;
-    flex-direction: column;
-    gap: 2rem;
+  .copy-button.success {
+    background: #10b981;
+  }
+
+  .player-info {
+    margin-top: 1rem;
+  }
+
+  .game-active {
+    text-align: center;
   }
 
   .players-panel {
-    background: #f8f9fa;
-    padding: 1.5rem;
-    border-radius: 8px;
-    border: 2px solid #e9ecef;
-  }
-
-  .players-panel h2 {
-    margin: 0 0 1rem 0;
-    text-align: center;
-  }
-
-  .players-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-  }
-
-  .player-card {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 1rem;
-    background: white;
-    border-radius: 6px;
-    border: 2px solid transparent;
-    transition: all 0.2s;
-  }
-
-  .player-card.active {
-    border-color: #4285f4;
-    background: #f0f7ff;
-  }
-
-  .player-card.current-player {
-    box-shadow: 0 0 0 2px #34a853;
-  }
-
-  .player-symbol {
-    font-size: 1.5rem;
-    font-weight: bold;
-    width: 2rem;
-    height: 2rem;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #e9ecef;
-    border-radius: 50%;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    padding: 1rem;
+    background: #f9fafb;
+    border-radius: 0.75rem;
   }
 
-  .player-details {
-    flex: 1;
-  }
-
-  .player-name {
-    font-weight: bold;
-    margin-bottom: 0.25rem;
-  }
-
-  .connection-status {
+  .player {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 0.5rem;
-    font-size: 0.875rem;
-    color: #6c757d;
+    gap: 0.25rem;
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    transition: background-color 0.2s;
   }
 
-  .status-indicator {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #dc3545;
+  .player.active {
+    background: #dbeafe;
+    border: 2px solid #3b82f6;
   }
 
-  .status-indicator.connected {
-    background: #28a745;
-  }
-
-  .turn-indicator {
-    font-size: 0.875rem;
-    color: #4285f4;
+  .player .symbol {
+    font-size: 1.5rem;
     font-weight: bold;
   }
 
-  .board-container {
-    text-align: center;
+  .player .name {
+    font-size: 0.875rem;
+    font-weight: 500;
   }
 
-  .board-container h2 {
-    margin-bottom: 1rem;
+  .player .status {
+    font-size: 0.75rem;
+  }
+
+  .vs {
+    font-weight: bold;
+    color: #6b7280;
+  }
+
+  .turn-indicator,
+  .game-result {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 2rem;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    background: #f0f9ff;
+    color: #0369a1;
+  }
+
+  .game-result {
+    background: #f0fdf4;
+    color: #166534;
   }
 
   .board {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: repeat(3, 1fr);
-    gap: 4px;
+    gap: 0.5rem;
     max-width: 300px;
-    margin: 0 auto 1rem;
-    background: #dee2e6;
-    padding: 4px;
-    border-radius: 8px;
+    margin: 0 auto 2rem;
+  }
+
+  .board.disabled {
+    pointer-events: none;
+    opacity: 0.7;
   }
 
   .cell {
     aspect-ratio: 1;
+    border: 2px solid #d1d5db;
+    border-radius: 0.5rem;
     background: white;
-    border: none;
-    border-radius: 4px;
     font-size: 2rem;
     font-weight: bold;
     cursor: pointer;
@@ -574,130 +517,90 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    min-height: 80px;
   }
 
   .cell:disabled {
-    cursor: default;
+    cursor: not-allowed;
   }
 
   .cell.clickable:hover {
-    background: #f8f9fa;
-    transform: scale(0.95);
-  }
-
-  .cell.clickable:focus {
-    outline: 2px solid #4285f4;
-    outline-offset: 2px;
+    background: #f3f4f6;
+    border-color: #3b82f6;
+    transform: translateY(-1px);
   }
 
   .cell.winning {
-    background: #fff3cd;
+    background: #dcfce7;
+    border-color: #16a34a;
     animation: highlight 0.5s ease-in-out;
   }
 
   @keyframes highlight {
-    0% { background: #ffc107; }
-    100% { background: #fff3cd; }
+    0%,
+    100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.05);
+    }
   }
 
-  .cell-content {
-    color: #495057;
+  .game-actions {
+    margin-top: 2rem;
   }
 
-  .game-status {
-    margin: 1rem 0;
-  }
-
-  .turn-message {
-    font-size: 1.1rem;
-    margin: 0;
-    color: #495057;
-  }
-
-  .game-result {
-    text-align: center;
-    padding: 2rem;
-    background: #f8f9fa;
-    border-radius: 8px;
-    border: 2px solid #e9ecef;
-  }
-
-  .game-result.disconnected {
-    background: #fff3cd;
-    border-color: #ffeaa7;
-  }
-
-  .game-result h2 {
-    margin: 0 0 1rem 0;
-  }
-
-  .result-message {
-    font-size: 1.2rem;
-    margin: 1rem 0;
-  }
-
-  .result-message.win {
-    color: #28a745;
-  }
-
-  .result-message.lose {
-    color: #dc3545;
-  }
-
-  .error-message {
-    background: #fff5f5;
-    border: 1px solid #fed7d7;
-    color: #c53030;
-    padding: 1rem;
-    border-radius: 4px;
-    margin: 1rem 0;
-    text-align: center;
-  }
-
-  .player-info {
-    margin-top: 1rem;
-    padding: 1rem;
+  .button {
+    padding: 0.75rem 2rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
     background: white;
-    border-radius: 6px;
-  }
-
-  /* Button styles */
-  button {
-    background: #6c757d;
-    color: white;
-    border: none;
-    padding: 0.75rem 1.5rem;
-    border-radius: 4px;
     cursor: pointer;
     font-size: 1rem;
-    transition: background-color 0.2s;
+    transition: all 0.2s;
   }
 
-  button:hover {
-    background: #5a6268;
+  .button:hover {
+    background: #f9fafb;
   }
 
-  button.primary {
-    background: #4285f4;
+  .button.primary {
+    background: #3b82f6;
+    color: white;
+    border-color: #3b82f6;
   }
 
-  button.primary:hover {
-    background: #3367d6;
+  .button.primary:hover {
+    background: #2563eb;
+    border-color: #2563eb;
   }
 
-  button.small {
-    padding: 0.5rem 1rem;
-    font-size: 0.875rem;
-  }
-
-  /* Responsive design */
-  @media (max-width: 600px) {
+  /* Mobile responsive design */
+  @media (max-width: 640px) {
     .game-room {
-      padding: 0.5rem;
+      padding: 1rem;
     }
 
-    .players-grid {
-      grid-template-columns: 1fr;
+    .players-panel {
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .player {
+      flex-direction: row;
+      gap: 0.5rem;
+    }
+
+    .vs {
+      transform: rotate(90deg);
+    }
+
+    .link-container {
+      flex-direction: column;
+    }
+
+    .link-input {
+      min-width: unset;
     }
 
     .board {
@@ -705,42 +608,36 @@
     }
 
     .cell {
+      min-height: 60px;
       font-size: 1.5rem;
     }
+  }
 
-    .url-container {
-      flex-direction: column;
-    }
-
-    .room-url {
-      max-width: 100%;
-      font-size: 0.8rem;
+  /* Accessibility improvements */
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
     }
   }
 
   /* High contrast mode support */
   @media (prefers-contrast: high) {
     .cell {
-      border: 2px solid #000;
+      border-width: 3px;
     }
-    
-    .status-indicator {
-      border: 1px solid #000;
+
+    .player.active {
+      border-width: 3px;
     }
   }
 
-  /* Reduced motion support */
-  @media (prefers-reduced-motion: reduce) {
-    .spinner {
-      animation: none;
-    }
-    
-    .cell.clickable:hover {
-      transform: none;
-    }
-    
-    @keyframes highlight {
-      0%, 100% { background: #fff3cd; }
-    }
+  /* Focus styles for keyboard navigation */
+  .cell:focus,
+  .button:focus,
+  .copy-button:focus {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
   }
 </style>
