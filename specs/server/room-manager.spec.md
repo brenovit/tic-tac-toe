@@ -4,7 +4,7 @@ Server-side room manager service for managing tic-tac-toe game rooms with in-mem
 
 ## Target
 
-[@generate](../../src/server/room-manager.ts)
+[@generate](../../src/lib/server/room-manager.ts)
 
 ## Capabilities
 

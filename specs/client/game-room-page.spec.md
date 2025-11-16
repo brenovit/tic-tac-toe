@@ -165,3 +165,7 @@ Real-time communication with game server.
 ### Game Types
 Type definitions for game state and messages.
 [@use](../types/game-types.spec.md)
+
+### Svelte
+Reactive component framework for building user interfaces.
+[@use](svelte)

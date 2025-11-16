@@ -30,7 +30,7 @@ export async function POST(event: RequestEvent): Promise<Response>;
 ### Room Manager
 
 Room management functionality for creating rooms and managing players.
-[@use](../../room-manager.spec.md)
+[@use](./room-manager.spec.md)
 
 ### SvelteKit
 

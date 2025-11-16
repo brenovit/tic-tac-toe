@@ -4,7 +4,7 @@ WebSocket server handler that integrates with SvelteKit server hooks to provide 
 
 ## Target
 
-[@generate](../src/server/websocket-handler.ts)
+[@generate](../../src/hooks.server.ts)
 
 ## Capabilities
 

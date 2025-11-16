@@ -4,7 +4,7 @@ The main landing page for the tic-tac-toe multiplayer game. Provides entry point
 
 ## Target
 
-[@generate](../src/routes/+page.svelte)
+[@generate](../../src/routes/+page.svelte)
 
 ## Capabilities
 
@@ -106,3 +106,8 @@ API endpoint for creating rooms.
 
 Client-side navigation functionality.
 [@use](@sveltejs/kit)
+
+### Svelte
+
+Reactive component framework for building user interfaces.
+[@use](svelte)

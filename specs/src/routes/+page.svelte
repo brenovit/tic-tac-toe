@@ -124,7 +124,7 @@
 
 	$effect(() => {
 		// Clear connection error when form values change
-		if (state.errors.connection) {
+		if (state.errors.connection && (state.playerName || state.roomId)) {
 			state.errors.connection = undefined;
 		}
 	});
@@ -150,9 +150,10 @@
 					maxlength="20"
 					required
 					aria-describedby={state.errors.playerName ? 'playerName-error' : undefined}
+					autofocus
 				/>
 				{#if state.errors.playerName}
-					<div class="error" id="playerName-error">{state.errors.playerName}</div>
+					<div class="error" id="playerName-error" role="alert">{state.errors.playerName}</div>
 				{/if}
 			</div>
 
@@ -165,9 +166,11 @@
 						onclick={handleCreateRoom}
 						disabled={state.isCreatingRoom || !!state.errors.playerName}
 						class="primary"
+						aria-describedby="create-room-help"
 					>
 						{state.isCreatingRoom ? 'Creating Room...' : 'Create Room'}
 					</button>
+					<div id="create-room-help" class="sr-only">Creates a new game room and provides a room code to share</div>
 				</div>
 
 				<div class="divider">OR</div>
@@ -185,24 +188,27 @@
 							oninput={(e) => updateRoomId(e.target.value.toUpperCase())}
 							maxlength="6"
 							style="text-transform: uppercase;"
-							aria-describedby={state.errors.roomId ? 'roomId-error' : undefined}
+							aria-describedby={state.errors.roomId ? 'roomId-error' : 'roomId-help'}
 						/>
+						<div id="roomId-help" class="help-text">Room codes are 6 alphanumeric characters</div>
 						{#if state.errors.roomId}
-							<div class="error" id="roomId-error">{state.errors.roomId}</div>
+							<div class="error" id="roomId-error" role="alert">{state.errors.roomId}</div>
 						{/if}
 					</div>
 					<button
 						type="button"
 						onclick={handleJoinRoom}
 						disabled={!!state.errors.playerName || !!state.errors.roomId}
+						aria-describedby="join-room-help"
 					>
 						Join Room
 					</button>
+					<div id="join-room-help" class="sr-only">Joins an existing game room using the provided room code</div>
 				</div>
 			</div>
 
 			{#if state.errors.connection}
-				<div class="error connection-error">{state.errors.connection}</div>
+				<div class="error connection-error" role="alert">{state.errors.connection}</div>
 			{/if}
 		</form>
 	</div>
@@ -271,6 +277,23 @@
 		border-color: #ef4444;
 	}
 
+	.help-text {
+		color: #6b7280;
+		font-size: 0.75rem;
+	}
+
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
+	}
+
 	.actions {
 		display: flex;
 		flex-direction: column;
@@ -301,6 +324,7 @@
 		color: #9ca3af;
 		font-weight: 600;
 		position: relative;
+		padding: 0 1rem;
 	}
 
 	.divider::before,
@@ -308,7 +332,7 @@
 		content: '';
 		position: absolute;
 		top: 50%;
-		width: 40%;
+		width: calc(50% - 1rem);
 		height: 1px;
 		background: #d1d5db;
 	}
@@ -368,17 +392,43 @@
 		border-radius: 6px;
 	}
 
+	@media (max-width: 768px) {
+		.content {
+			max-width: 90vw;
+		}
+		
+		.section {
+			gap: 1rem;
+		}
+	}
+
 	@media (max-width: 480px) {
+		.container {
+			padding: 0.5rem;
+		}
+		
 		.content {
 			padding: 1.5rem;
+			border-radius: 8px;
 		}
 
 		h1 {
 			font-size: 1.5rem;
+			margin-bottom: 1.5rem;
 		}
 
 		button {
 			min-height: 48px;
+			font-size: 1.125rem;
+		}
+
+		input {
+			padding: 1rem;
+			font-size: 1.125rem;
+		}
+
+		.actions {
+			gap: 2rem;
 		}
 	}
 </style>

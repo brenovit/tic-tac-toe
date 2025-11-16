@@ -4,7 +4,7 @@ Shared TypeScript type definitions for the online multiplayer tic-tac-toe game. 
 
 ## Target
 
-[@generate](../src/types/game-types.ts)
+[@generate](../../src/lib/types/game-types.ts)
 
 ## Capabilities
 

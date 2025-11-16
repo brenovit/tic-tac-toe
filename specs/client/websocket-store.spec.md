@@ -4,7 +4,7 @@ Svelte store for managing WebSocket connections on the client side with real-tim
 
 ## Target
 
-[@generate](../../src/client/websocket-store.ts)
+[@generate](../../src/lib/websocket-store.ts)
 
 ## Capabilities
 
