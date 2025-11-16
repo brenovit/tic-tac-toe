@@ -1,3 +1,7 @@
+// GENERATED FROM SPEC - DO NOT EDIT
+// @generated with Tessl v0.28.0 from specs/server/dev-server.spec.md
+// (spec:907c4e7d) (code:130aff67)
+
 import { WebSocketServer, WebSocket } from 'ws';
 import {
   createRoom,
@@ -123,6 +127,11 @@ wss.on('connection', (ws: WebSocket) => {
 
         default:
           console.warn('Unknown message type:', (message as any).type);
+          const errorMsg: ServerToClientMessage = {
+            type: 'error',
+            message: 'Unknown message type'
+          };
+          ws.send(JSON.stringify(errorMsg));
       }
     } catch (error) {
       console.error('Error handling message:', error);
