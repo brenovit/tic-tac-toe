@@ -22,11 +22,15 @@ Allows players to enter their display name with validation.
 Enables players to create a new game room and become the host.
 
 - Validates player name before attempting to create room
-- Calls SvelteKit API endpoint POST /api/rooms to create room
-- Shows loading state while creating room
-- On success, navigates to /room/[roomId] with player name in URL state
-- Displays error message if room creation fails
+- Connects to WebSocket server
+- Waits for connection to be established using isConnected() polling with 100ms intervals
+- Once connected, sends createRoom message with player name
+- Listens for roomCreated response with roomId and playerId
+- Shows loading state while connecting and creating room
+- On success, navigates to /room/[roomId] with player name and playerId in URL params
+- Displays error message if room creation fails, connection errors occur, or connection timeout (10 seconds)
 - Button is disabled during loading or validation errors
+- Disconnects from WebSocket and clears intervals after receiving room creation response or on timeout/error
 
 ### Join Existing Room
 
@@ -83,24 +87,24 @@ interface LandingPageState {
 function validatePlayerName(name: string): string | null;
 function validateRoomId(id: string): string | null;
 
-// API operations
+// WebSocket operations
 function createRoom(playerName: string): Promise<{ roomId: string; playerId: string }>;
 
 // Navigation helpers
-function navigateToRoom(roomId: string, playerName: string, playerId: string): void;
+function navigateToRoom(roomId: string, playerName: string, playerId?: string): void;
 ```
 
 ## Dependencies
+
+### WebSocket Store
+
+Client-side WebSocket connection management.
+[@use](./websocket-store.spec.md)
 
 ### Game Types
 
 Type definitions for room IDs and validation rules.
 [@use](../types/game-types.spec.md)
-
-### Room API Endpoint
-
-API endpoint for creating rooms.
-[@use](../server/room-api.spec.md)
 
 ### SvelteKit Navigation
 

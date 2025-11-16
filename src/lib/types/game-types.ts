@@ -1,6 +1,6 @@
 // GENERATED FROM SPEC - DO NOT EDIT
 // @generated with Tessl v0.28.0 from ../../../specs/types/game-types.spec.md
-// (spec:4c071884) (code:24c90c0d)
+// (spec:cc0a2153) (code:a303adcc)
 
 // Player interface
 export interface Player {
@@ -27,7 +27,7 @@ export type CellValue = 'X' | 'O' | null;
 // Game result interface
 export interface GameResult {
   winner: 'X' | 'O' | 'draw';
-  reason: 'win' | 'disconnect'; // how the game ended
+  reason: 'win' | 'draw' | 'disconnect'; // how the game ended
 }
 
 // Client to server messages

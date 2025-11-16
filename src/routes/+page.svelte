@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import type { CreateRoomMessage } from '$lib/types/game-types.js';
+  import { createWebSocketStore } from '$lib/websocket-store.js';
+  import type { ServerToClientMessage } from '$lib/types/game-types.js';
 
   let playerName: string = '';
   let roomId: string = '';
@@ -34,20 +35,53 @@
   }
 
   async function createRoom(playerName: string): Promise<{ roomId: string; playerId: string }> {
-    const response = await fetch('/api/rooms', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ playerName })
+    return new Promise((resolve, reject) => {
+      const wsStore = createWebSocketStore();
+      let unsubscribe: (() => void) | null = null;
+      let connectionCheckInterval: number | null = null;
+      
+      const timeout = setTimeout(() => {
+        if (unsubscribe) unsubscribe();
+        if (connectionCheckInterval) clearInterval(connectionCheckInterval);
+        wsStore.disconnect();
+        reject(new Error('Connection timeout'));
+      }, 10000);
+
+      const cleanup = () => {
+        clearTimeout(timeout);
+        if (unsubscribe) unsubscribe();
+        if (connectionCheckInterval) clearInterval(connectionCheckInterval);
+        wsStore.disconnect();
+      };
+
+      try {
+        wsStore.connect();
+        
+        // Poll for connection status
+        connectionCheckInterval = setInterval(() => {
+          if (wsStore.isConnected()) {
+            if (connectionCheckInterval) clearInterval(connectionCheckInterval);
+            wsStore.createRoom(playerName.trim());
+          }
+        }, 100);
+        
+        unsubscribe = wsStore.subscribe((message: ServerToClientMessage) => {
+          if (message.type === 'roomCreated') {
+            cleanup();
+            resolve({ 
+              roomId: message.roomState.id, 
+              playerId: message.playerId 
+            });
+          } else if (message.type === 'error') {
+            cleanup();
+            reject(new Error(message.message));
+          }
+        });
+      } catch (error) {
+        cleanup();
+        reject(error);
+      }
     });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to create room');
-    }
-
-    return await response.json();
   }
 
   function navigateToRoom(roomId: string, playerName: string, playerId?: string): void {

@@ -56,7 +56,7 @@ export type CellValue = 'X' | 'O' | null;
 // Game result interface
 export interface GameResult {
   winner: 'X' | 'O' | 'draw';
-  reason: 'win' | 'disconnect'; // how the game ended
+  reason: 'win' | 'draw' | 'disconnect'; // how the game ended
 }
 
 // Client to server messages
