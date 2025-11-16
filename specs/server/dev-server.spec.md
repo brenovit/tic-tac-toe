@@ -30,8 +30,10 @@ Maintains maps to track client connections and room associations.
 Processes incoming client messages and routes them to appropriate handlers.
 
 - Parses JSON messages from clients
+- Logs all received messages with timestamp and message type
 - Validates message types
 - Handles createRoom, joinRoom, and makeMove messages
+- Logs all outgoing responses with message type
 - Sends appropriate responses and error messages
 
 ### Room Creation via WebSocket
@@ -76,7 +78,9 @@ Sends messages to all connected clients in a room.
 
 - Serializes messages to JSON
 - Checks WebSocket readyState before sending
+- Logs broadcast operations with room ID and message type
 - Sends to all clients in the specified room
+- Logs number of recipients for each broadcast
 
 ### Error Handling
 

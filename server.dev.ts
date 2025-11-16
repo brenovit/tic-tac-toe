@@ -1,6 +1,6 @@
 // GENERATED FROM SPEC - DO NOT EDIT
 // @generated with Tessl v0.28.0 from specs/server/dev-server.spec.md
-// (spec:907c4e7d) (code:130aff67)
+// (spec:da5f2bfe) (code:713f25f6)
 
 import { WebSocketServer, WebSocket } from 'ws';
 import {
@@ -36,7 +36,7 @@ wss.on('connection', (ws: WebSocket) => {
   ws.on('message', async (data: Buffer) => {
     try {
       const message = JSON.parse(data.toString()) as ClientToServerMessage;
-      console.log('Received message:', message);
+      console.log(`[${new Date().toISOString()}] Received message type: ${message.type}`, message);
 
       switch (message.type) {
         case 'createRoom': {
@@ -55,6 +55,7 @@ wss.on('connection', (ws: WebSocket) => {
             playerId: result.playerId,
             roomState: roomState!
           };
+          console.log(`[${new Date().toISOString()}] Sending response type: ${response.type}`);
           ws.send(JSON.stringify(response));
           break;
         }
@@ -96,6 +97,7 @@ wss.on('connection', (ws: WebSocket) => {
               type: 'error',
               message: 'Not connected to a room'
             };
+            console.log(`[${new Date().toISOString()}] Sending error response type: ${errorMsg.type}`);
             ws.send(JSON.stringify(errorMsg));
             break;
           }
@@ -131,14 +133,16 @@ wss.on('connection', (ws: WebSocket) => {
             type: 'error',
             message: 'Unknown message type'
           };
+          console.log(`[${new Date().toISOString()}] Sending error response type: ${errorMsg.type}`);
           ws.send(JSON.stringify(errorMsg));
       }
     } catch (error) {
-      console.error('Error handling message:', error);
+      console.error('Error parsing message or handling request:', error);
       const errorMsg: ServerToClientMessage = {
         type: 'error',
         message: error instanceof Error ? error.message : 'Internal server error'
       };
+      console.log(`[${new Date().toISOString()}] Sending error response type: ${errorMsg.type}`);
       ws.send(JSON.stringify(errorMsg));
     }
   });
@@ -149,9 +153,6 @@ wss.on('connection', (ws: WebSocket) => {
     if (connInfo) {
       const { roomId, playerId } = connInfo;
 
-      // Handle disconnection in room manager
-      roomHandleDisconnect(roomId, playerId);
-
       // Remove from room connections
       const roomWs = roomConnections.get(roomId);
       if (roomWs) {
@@ -160,6 +161,9 @@ wss.on('connection', (ws: WebSocket) => {
           roomConnections.delete(roomId);
         }
       }
+
+      // Handle disconnection in room manager
+      roomHandleDisconnect(roomId, playerId);
 
       // Notify other players
       const roomState = getRoomState(roomId);
@@ -184,10 +188,15 @@ function broadcastToRoom(roomId: string, message: ServerToClientMessage): void {
   const roomWs = roomConnections.get(roomId);
   if (roomWs) {
     const messageStr = JSON.stringify(message);
+    let recipientCount = 0;
+    
     roomWs.forEach((ws) => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(messageStr);
+        recipientCount++;
       }
     });
+    
+    console.log(`[${new Date().toISOString()}] Broadcasting message type: ${message.type} to room ${roomId} (${recipientCount} recipients)`);
   }
 }

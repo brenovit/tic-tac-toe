@@ -6,11 +6,20 @@
   let playerName: string = '';
   let roomId: string = '';
   let isCreatingRoom: boolean = false;
+  let createdRoomCode: string | null = null;
+  let createdPlayerId: string | null = null;
+  let copySuccess: boolean = false;
   let errors: {
     playerName?: string;
     roomId?: string;
     connection?: string;
   } = {};
+
+  // Internal variables for WebSocket operations
+  let wsStore: ReturnType<typeof createWebSocketStore> | null = null;
+  let connectionCheckInterval: number;
+  let unsubscribeFn: (() => void) | null = null;
+  let createTimeout: number;
 
   function validatePlayerName(name: string): string | null {
     const trimmed = name.trim();
@@ -34,65 +43,11 @@
     return null;
   }
 
-  async function createRoom(playerName: string): Promise<{ roomId: string; playerId: string }> {
-    return new Promise((resolve, reject) => {
-      const wsStore = createWebSocketStore();
-      let unsubscribe: (() => void) | null = null;
-      let connectionCheckInterval: number | null = null;
-      
-      const timeout = setTimeout(() => {
-        if (unsubscribe) unsubscribe();
-        if (connectionCheckInterval) clearInterval(connectionCheckInterval);
-        wsStore.disconnect();
-        reject(new Error('Connection timeout'));
-      }, 10000);
-
-      const cleanup = () => {
-        clearTimeout(timeout);
-        if (unsubscribe) unsubscribe();
-        if (connectionCheckInterval) clearInterval(connectionCheckInterval);
-        wsStore.disconnect();
-      };
-
-      try {
-        wsStore.connect();
-        
-        // Poll for connection status
-        connectionCheckInterval = setInterval(() => {
-          if (wsStore.isConnected()) {
-            if (connectionCheckInterval) clearInterval(connectionCheckInterval);
-            wsStore.createRoom(playerName.trim());
-          }
-        }, 100);
-        
-        unsubscribe = wsStore.subscribe((message: ServerToClientMessage) => {
-          if (message.type === 'roomCreated') {
-            cleanup();
-            resolve({ 
-              roomId: message.roomState.id, 
-              playerId: message.playerId 
-            });
-          } else if (message.type === 'error') {
-            cleanup();
-            reject(new Error(message.message));
-          }
-        });
-      } catch (error) {
-        cleanup();
-        reject(error);
-      }
-    });
-  }
-
   function navigateToRoom(roomId: string, playerName: string, playerId?: string): void {
-    const params = new URLSearchParams({
-      name: playerName.trim()
-    });
-    
+    const params = new URLSearchParams({ name: playerName.trim() });
     if (playerId) {
       params.set('playerId', playerId);
     }
-
     goto(`/room/${roomId}?${params.toString()}`);
   }
 
@@ -116,6 +71,88 @@
     errors = { ...errors };
   }
 
+  function cancelRoomCreation(): void {
+    if (unsubscribeFn) unsubscribeFn();
+    if (connectionCheckInterval) clearInterval(connectionCheckInterval);
+    if (createTimeout) clearTimeout(createTimeout);
+    if (wsStore) wsStore.disconnect();
+    isCreatingRoom = false;
+    createdRoomCode = null;
+    createdPlayerId = null;
+    delete errors.connection;
+    errors = { ...errors };
+  }
+
+  async function copyRoomCodeToClipboard(roomCode: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(roomCode);
+      copySuccess = true;
+      setTimeout(() => {
+        copySuccess = false;
+      }, 2000);
+    } catch {
+      errors.connection = 'Failed to copy room code';
+      errors = { ...errors };
+    }
+  }
+
+  function startGameWithCreatedRoom(): void {
+    if (createdRoomCode && createdPlayerId) {
+      // cleanup before navigating
+      if (wsStore) wsStore.disconnect();
+      navigateToRoom(createdRoomCode, playerName.trim(), createdPlayerId);
+    }
+  }
+
+  async function createRoom(playerName: string): Promise<{ roomId: string; playerId: string }> {
+    return new Promise((resolve, reject) => {
+      wsStore = createWebSocketStore();
+      
+      const cleanup = () => {
+        if (connectionCheckInterval) clearInterval(connectionCheckInterval);
+        if (createTimeout) clearTimeout(createTimeout);
+        if (unsubscribeFn) unsubscribeFn();
+      };
+
+      try {
+        wsStore.connect();
+
+        // setup timeout for connection
+        createTimeout = window.setTimeout(() => {
+          cleanup();
+          if (wsStore) wsStore.disconnect();
+          reject(new Error('Connection timeout'));
+        }, 10000);
+
+        // poll for ready state
+        connectionCheckInterval = window.setInterval(() => {
+          if (wsStore && wsStore.isConnected()) {
+            clearInterval(connectionCheckInterval);
+            wsStore.createRoom(playerName.trim());
+          }
+        }, 100);
+
+        unsubscribeFn = wsStore.subscribe((message: ServerToClientMessage) => {
+          if (message.type === 'roomCreated') {
+            cleanup();
+            resolve({
+              roomId: message.roomState.id,
+              playerId: message.playerId
+            });
+          } else if (message.type === 'error') {
+            cleanup();
+            if (wsStore) wsStore.disconnect();
+            reject(new Error(message.message));
+          }
+        });
+      } catch (error) {
+        cleanup();
+        if (wsStore) wsStore.disconnect();
+        reject(error);
+      }
+    });
+  }
+
   async function handleCreateRoom(): Promise<void> {
     const nameError = validatePlayerName(playerName);
     if (nameError) {
@@ -130,11 +167,12 @@
 
     try {
       const result = await createRoom(playerName.trim());
-      navigateToRoom(result.roomId, playerName.trim(), result.playerId);
+      createdRoomCode = result.roomId;
+      createdPlayerId = result.playerId;
+      isCreatingRoom = false;
     } catch (error) {
       errors.connection = error instanceof Error ? error.message : 'Failed to create room';
       errors = { ...errors };
-    } finally {
       isCreatingRoom = false;
     }
   }
@@ -142,14 +180,13 @@
   function handleJoinRoom(): void {
     const nameError = validatePlayerName(playerName);
     const idError = validateRoomId(roomId);
-    
+
     if (nameError) {
       errors.playerName = nameError;
     }
     if (idError) {
       errors.roomId = idError;
     }
-    
     if (nameError || idError) {
       errors = { ...errors };
       return;
@@ -158,7 +195,7 @@
     navigateToRoom(roomId.trim(), playerName.trim());
   }
 
-  $: canCreateRoom = !validatePlayerName(playerName) && !isCreatingRoom;
+  $: canCreateRoom = !validatePlayerName(playerName) && !isCreatingRoom && !createdRoomCode;
   $: canJoinRoom = !validatePlayerName(playerName) && !validateRoomId(roomId);
 </script>
 
@@ -193,18 +230,28 @@
     <div class="actions">
       <div class="create-section">
         <h3>Create New Game</h3>
-        <button
-          class="create-button"
-          disabled={!canCreateRoom}
-          on:click={handleCreateRoom}
-          aria-label={isCreatingRoom ? 'Creating room...' : 'Create new room'}
-        >
+        {#if createdRoomCode}
+          <div class="created-info">
+            <p class="room-code">{createdRoomCode}</p>
+            <p class="share-text">Share this code with your friend</p>
+            <button on:click={() => copyRoomCodeToClipboard(createdRoomCode)} disabled={copySuccess}>
+              {#if copySuccess}Copied!{:else}Copy to clipboard{/if}
+            </button>
+            <button on:click={startGameWithCreatedRoom}>Start Game</button>
+          </div>
+        {:else}
+          <button
+            class="create-button"
+            disabled={!canCreateRoom}
+            on:click={handleCreateRoom}
+            aria-label={isCreatingRoom ? 'Connecting...' : 'Create new room'}
+          >
+            {#if isCreatingRoom}Connecting...{:else}Create Room{/if}
+          </button>
           {#if isCreatingRoom}
-            Creating...
-          {:else}
-            Create Room
+            <button class="cancel-button" on:click={cancelRoomCreation}>Cancel</button>
           {/if}
-        </button>
+        {/if}
       </div>
 
       <div class="divider">OR</div>
@@ -404,6 +451,19 @@
       0 0 40px rgba(0, 255, 128, 0.3);
   }
 
+  .cancel-button {
+    background: transparent;
+    border-color: #ff0080;
+    color: #ff0080;
+    text-shadow: none;
+    margin-top: 0.5rem;
+  }
+
+  .cancel-button:hover {
+    background: #ff0080;
+    color: #000;
+  }
+
   .divider {
     text-align: center;
     color: #666;
@@ -437,6 +497,25 @@
     border-radius: 5px;
     color: #ff0080;
     font-size: 0.9rem;
+  }
+
+  .created-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .room-code {
+    font-size: 2rem;
+    font-weight: bold;
+    letter-spacing: 0.3em;
+    color: #00ff80;
+  }
+
+  .share-text {
+    color: #00ff80;
+    opacity: 0.9;
   }
 
   @media (max-width: 768px) {

@@ -1,6 +1,6 @@
 // GENERATED FROM SPEC - DO NOT EDIT
 // @generated with Tessl v0.28.0 from ../../specs/client/websocket-store.spec.md
-// (spec:4bee7a1f) (code:4328223d)
+// (spec:4bee7a1f) (code:4c4c38d5)
 
 import { writable, derived, type Writable } from 'svelte/store';
 import type {

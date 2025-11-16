@@ -26,11 +26,16 @@ Enables players to create a new game room and become the host.
 - Waits for connection to be established using isConnected() polling with 100ms intervals
 - Once connected, sends createRoom message with player name
 - Listens for roomCreated response with roomId and playerId
-- Shows loading state while connecting and creating room
-- On success, navigates to /room/[roomId] with player name and playerId in URL params
+- Shows loading state with "Connecting..." message and cancel button while connecting and creating room
+- On success, displays the room code prominently on screen with:
+  - Large, easy-to-read room code display
+  - "Share this code with your friend" message
+  - Copy to clipboard button
+  - "Start Game" button to navigate to /room/[roomId]
 - Displays error message if room creation fails, connection errors occur, or connection timeout (10 seconds)
-- Button is disabled during loading or validation errors
-- Disconnects from WebSocket and clears intervals after receiving room creation response or on timeout/error
+- Create Room button is disabled during loading or validation errors
+- Allows user to cancel room creation while connecting, which disconnects WebSocket and returns to initial state
+- Disconnects from WebSocket and clears intervals after navigating to game or on cancel/timeout/error
 
 ### Join Existing Room
 
@@ -76,6 +81,9 @@ interface LandingPageState {
   playerName: string;
   roomId: string;
   isCreatingRoom: boolean;
+  createdRoomCode: string | null;
+  createdPlayerId: string | null;
+  copySuccess: boolean;
   errors: {
     playerName?: string;
     roomId?: string;
@@ -89,6 +97,11 @@ function validateRoomId(id: string): string | null;
 
 // WebSocket operations
 function createRoom(playerName: string): Promise<{ roomId: string; playerId: string }>;
+function cancelRoomCreation(): void;
+
+// UI helpers
+function copyRoomCodeToClipboard(roomCode: string): Promise<void>;
+function startGameWithCreatedRoom(): void;
 
 // Navigation helpers
 function navigateToRoom(roomId: string, playerName: string, playerId?: string): void;

@@ -16,15 +16,19 @@ Generates unique room IDs and initializes game rooms with the first player.
 - Sets first player as 'X' with status 'waiting'
 - Initializes empty 3x3 board (9 null values)
 - Returns room ID and player ID for joining
+- Logs room creation with room ID and player name
 
 ### Player Management
 
-Handles player joining and validates room capacity.
+Handles player joining, reconnections, and validates room capacity.
 
-- Adds second player to existing room as 'O'
-- Changes room status from 'waiting' to 'playing'
+- Checks if player with same name already exists in room (reconnection case)
+- For reconnections: marks player as connected and returns existing playerId
+- For new players: adds second player to existing room as 'O'
+- Changes room status from 'waiting' to 'playing' when second player joins
 - Validates room exists and has space available
 - Returns error for full or non-existent rooms
+- Logs all player join attempts with room ID and player name
 
 ### Move Processing
 
@@ -35,6 +39,7 @@ Validates and processes player moves with turn management.
 - Updates board state with player's symbol
 - Switches turn to other player if game continues
 - Checks for win conditions or draw after each move
+- Logs each move attempt with room ID, player ID, and position
 
 ### Win Detection
 
@@ -53,6 +58,7 @@ Manages player disconnections and game termination.
 - Awards win to remaining player if game in progress
 - Returns appropriate game result for client notification
 - Handles graceful game termination
+- Logs all disconnect events with room ID and player ID
 
 ### Room Cleanup
 

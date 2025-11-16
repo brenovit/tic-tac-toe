@@ -1,6 +1,6 @@
 // GENERATED FROM SPEC - DO NOT EDIT
 // @generated with Tessl v0.28.0 from ../../../specs/server/room-manager.spec.md
-// (spec:2cc0ecea) (code:c2c9d276)
+// (spec:6f666a9a) (code:26a1eedb)
 
 import type { RoomState, Player, CellValue, GameResult } from '../types/game-types.js';
 
@@ -43,6 +43,7 @@ export function createRoom(playerName: string): { roomId: string, playerId: stri
   };
   
   rooms.set(roomId, roomState);
+  console.log(`Room created: ${roomId} by player: ${playerName}`);
   
   return { roomId, playerId };
 }
@@ -51,10 +52,20 @@ export function joinRoom(roomId: string, playerName: string): { playerId: string
   const room = rooms.get(roomId);
   
   if (!room) {
+    console.log(`Player join failed - room not found: ${roomId} by player: ${playerName}`);
     throw new Error('Room not found');
   }
   
+  // Check if player with same name already exists in room (reconnection case)
+  const existingPlayer = room.players.find(p => p.name === playerName);
+  if (existingPlayer) {
+    existingPlayer.connected = true;
+    console.log(`Player reconnected: ${roomId} by player: ${playerName}`);
+    return { playerId: existingPlayer.id, roomState: room };
+  }
+  
   if (room.players.length >= 2) {
+    console.log(`Player join failed - room is full: ${roomId} by player: ${playerName}`);
     throw new Error('Room is full');
   }
   
@@ -70,6 +81,8 @@ export function joinRoom(roomId: string, playerName: string): { playerId: string
   room.players.push(player);
   room.status = 'playing';
   
+  console.log(`Player joined: ${roomId} by player: ${playerName}`);
+  
   return { playerId, roomState: room };
 }
 
@@ -77,37 +90,44 @@ export function makeMove(roomId: string, playerId: string, position: number): Ro
   const room = rooms.get(roomId);
   
   if (!room) {
+    console.log(`Move failed - room not found: ${roomId} by player: ${playerId} at position: ${position}`);
     throw new Error('Room not found');
   }
   
   if (room.status !== 'playing') {
+    console.log(`Move failed - game not in progress: ${roomId} by player: ${playerId} at position: ${position}`);
     throw new Error('Game is not in progress');
   }
   
   const player = room.players.find(p => p.id === playerId);
   if (!player) {
+    console.log(`Move failed - player not in room: ${roomId} by player: ${playerId} at position: ${position}`);
     throw new Error('Player not in room');
   }
   
   if (room.currentTurn !== player.symbol) {
+    console.log(`Move failed - not player's turn: ${roomId} by player: ${playerId} at position: ${position}`);
     throw new Error('Not your turn');
   }
   
   if (position < 0 || position >= 9) {
+    console.log(`Move failed - invalid position: ${roomId} by player: ${playerId} at position: ${position}`);
     throw new Error('Invalid position');
   }
   
   if (room.board[position] !== null) {
+    console.log(`Move failed - cell occupied: ${roomId} by player: ${playerId} at position: ${position}`);
     throw new Error('Cell is already occupied');
   }
   
   // Make the move
   room.board[position] = player.symbol;
+  console.log(`Move made: ${roomId} by player: ${playerId} at position: ${position}`);
   
   // Check for win or draw
   const winner = checkWinner(room.board);
   
-  if (winner) {
+  if (winner && winner !== 'draw') {
     room.winner = winner;
     room.status = 'finished';
   } else if (room.board.every(cell => cell !== null)) {
@@ -166,6 +186,7 @@ export function handleDisconnect(roomId: string, playerId: string): GameResult |
   }
   
   player.connected = false;
+  console.log(`Player disconnected: ${roomId} by player: ${playerId}`);
   
   if (room.status === 'playing') {
     // Award win to the remaining player

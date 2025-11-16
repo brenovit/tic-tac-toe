@@ -30,8 +30,8 @@ Establishes and manages real-time connection to game server.
 
 Renders different UI states based on current game status.
 
-- Connecting state: Shows "Connecting to game..." loading indicator
-- Waiting state: Shows "Waiting for opponent..." with shareable room link
+- Connecting state: Shows "Connecting to game..." loading indicator with cancel button
+- Waiting state: Shows "Waiting for opponent..." with shareable room link and "Back to Lobby" button
 - Playing state: Displays active game board with turn indicators
 - Finished state: Shows game result with "Play Again" option
 - Disconnected state: Shows "Opponent disconnected - You win!" message
@@ -93,6 +93,15 @@ Manages end-of-game states and post-game actions.
 - Shows win reason (normal victory vs opponent disconnect)
 - Provides "New Game" button redirecting to landing page
 - Offers rematch link copying for same players
+
+### Cancel and Navigation
+
+Provides user ability to leave room and return to lobby.
+
+- Allows canceling while in connecting state, disconnecting WebSocket and returning to landing page
+- Provides "Back to Lobby" button while waiting for opponent
+- Disconnects cleanly from WebSocket before navigation
+- Clears all intervals and cleanup timers on cancel
 
 ### Error Management
 
@@ -165,6 +174,10 @@ Real-time communication with game server.
 ### Game Types
 Type definitions for game state and messages.
 [@use](../types/game-types.spec.md)
+
+### SvelteKit
+SvelteKit page stores and navigation functionality.
+[@use](@sveltejs/kit)
 
 ### Svelte
 Reactive component framework for building user interfaces.
