@@ -1,15 +1,15 @@
 // GENERATED FROM SPEC - DO NOT EDIT
 // @generated with Tessl v0.28.0 from ../../specs/client/websocket-store.spec.md
-// (spec:84cd5212) (code:02d167cf)
+// (spec:44ee2cde) (code:d9a68fef)
 
-import type { 
-  RoomState, 
-  ClientToServerMessage, 
+import type {
+  RoomState,
+  ClientToServerMessage,
   ServerToClientMessage,
   CreateRoomMessage,
   JoinRoomMessage,
-  MakeMoveMessage 
-} from '../types/game-types.js';
+  MakeMoveMessage
+} from './types/game-types.js';
 
 interface WebSocketStore {
   // State
@@ -37,15 +37,21 @@ interface WebSocketStore {
 
 let storeInstance: WebSocketStore | null = null;
 
+/**
+ * Creates a WebSocket store instance for managing game connections
+ * @param serverUrl - WebSocket server URL (default: ws://localhost:3001)
+ * @returns WebSocket store instance
+ */
 export function createWebSocketStore(serverUrl: string = 'ws://localhost:3001'): WebSocketStore {
   if (storeInstance) {
     return storeInstance;
   }
 
   let ws: WebSocket | null = null;
-  let reconnectAttempts = 0;
-  let maxReconnectAttempts = 5;
   let reconnectTimeout: number | null = null;
+  let reconnectAttempts = 0;
+  const maxReconnectAttempts = 5;
+  const baseReconnectDelay = 1000;
 
   // State using Svelte 5 runes
   let connectionStatus = $state<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected');
@@ -53,22 +59,21 @@ export function createWebSocketStore(serverUrl: string = 'ws://localhost:3001'):
   let playerInfo = $state<{ playerId: string; symbol: 'X' | 'O' } | null>(null);
   let errorMessage = $state<string | null>(null);
 
-  // Derived values
-  const isMyTurn = $derived(() => {
+  // Derived helpers
+  const isMyTurn = $derived.by(() => {
     if (!roomState || !playerInfo) return false;
     return roomState.currentTurn === playerInfo.symbol;
   });
 
-  const canMakeMove = $derived(() => {
-    return (position: number) => {
-      if (!roomState || !playerInfo || roomState.status !== 'playing') return false;
-      if (roomState.currentTurn !== playerInfo.symbol) return false;
-      if (position < 0 || position > 8) return false;
-      return roomState.board[position] === null;
-    };
-  });
+  const canMakeMove = (position: number): boolean => {
+    if (!roomState || !playerInfo) return false;
+    if (roomState.status !== 'playing') return false;
+    if (!isMyTurn) return false;
+    if (position < 0 || position > 8) return false;
+    return roomState.board[position] === null;
+  };
 
-  function connect(): void {
+  const connect = (): void => {
     if (connectionStatus === 'connecting' || connectionStatus === 'connected') {
       return;
     }
@@ -90,7 +95,7 @@ export function createWebSocketStore(serverUrl: string = 'ws://localhost:3001'):
           const message: ServerToClientMessage = JSON.parse(event.data);
           handleServerMessage(message);
         } catch (error) {
-          console.error('Failed to parse message:', error);
+          console.error('Failed to parse server message:', error);
           errorMessage = 'Invalid message received from server';
         }
       };
@@ -99,74 +104,85 @@ export function createWebSocketStore(serverUrl: string = 'ws://localhost:3001'):
         connectionStatus = 'disconnected';
         ws = null;
 
-        if (event.code !== 1000 && reconnectAttempts < maxReconnectAttempts) {
+        if (!event.wasClean && reconnectAttempts < maxReconnectAttempts) {
           scheduleReconnect();
         }
       };
 
-      ws.onerror = () => {
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
         connectionStatus = 'error';
         errorMessage = 'Connection error occurred';
       };
 
     } catch (error) {
+      console.error('Failed to create WebSocket:', error);
       connectionStatus = 'error';
       errorMessage = 'Failed to establish connection';
     }
-  }
+  };
 
-  function scheduleReconnect(): void {
-    const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
-    reconnectAttempts++;
-
-    reconnectTimeout = window.setTimeout(() => {
-      connect();
-    }, delay);
-  }
-
-  function disconnect(): void {
+  const disconnect = (): void => {
     if (reconnectTimeout) {
       clearTimeout(reconnectTimeout);
       reconnectTimeout = null;
     }
 
     if (ws) {
-      ws.close(1000);
+      ws.close(1000, 'Client disconnect');
       ws = null;
     }
 
     connectionStatus = 'disconnected';
-    reconnectAttempts = 0;
-  }
+    roomState = null;
+    playerInfo = null;
+    errorMessage = null;
+  };
 
-  function sendMessage(message: ClientToServerMessage): void {
-    if (ws && connectionStatus === 'connected') {
-      ws.send(JSON.stringify(message));
-    } else {
+  const scheduleReconnect = (): void => {
+    const delay = baseReconnectDelay * Math.pow(2, reconnectAttempts);
+    reconnectAttempts++;
+
+    reconnectTimeout = window.setTimeout(() => {
+      reconnectTimeout = null;
+      connect();
+    }, delay);
+  };
+
+  const sendMessage = (message: ClientToServerMessage): void => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
       errorMessage = 'Not connected to server';
+      return;
     }
-  }
 
-  function createRoom(playerName: string): void {
+    try {
+      ws.send(JSON.stringify(message));
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      errorMessage = 'Failed to send message';
+    }
+  };
+
+  const createRoom = (playerName: string): void => {
     const message: CreateRoomMessage = {
       type: 'createRoom',
       playerName
     };
     sendMessage(message);
-  }
+  };
 
-  function joinRoom(roomId: string, playerName: string): void {
+  const joinRoom = (roomId: string, playerName: string): void => {
     const message: JoinRoomMessage = {
       type: 'joinRoom',
       roomId,
       playerName
     };
     sendMessage(message);
-  }
+  };
 
-  function makeMove(position: number): void {
-    if (!roomState) {
-      errorMessage = 'No active room';
+  const makeMove = (position: number): void => {
+    if (!roomState || !canMakeMove(position)) {
+      errorMessage = 'Invalid move';
       return;
     }
 
@@ -176,25 +192,30 @@ export function createWebSocketStore(serverUrl: string = 'ws://localhost:3001'):
       cellIndex: position
     };
     sendMessage(message);
-  }
+  };
 
-  function handleServerMessage(message: ServerToClientMessage): void {
+  const handleServerMessage = (message: ServerToClientMessage): void => {
+    errorMessage = null;
+
     switch (message.type) {
       case 'roomCreated':
         roomState = message.roomState;
         playerInfo = {
           playerId: message.playerId,
-          symbol: message.roomState.players[0]?.symbol || 'X'
+          symbol: message.roomState.players[0].symbol
         };
         break;
 
       case 'playerJoined':
         roomState = message.roomState;
-        if (playerInfo && roomState.players.length === 2) {
-          // Update player info if we're the second player
-          const otherPlayer = roomState.players.find(p => p?.id !== playerInfo.playerId);
-          if (otherPlayer && !playerInfo.symbol) {
-            playerInfo.symbol = otherPlayer.symbol === 'X' ? 'O' : 'X';
+        if (!playerInfo && message.roomState.players.length === 2) {
+          // If we don't have playerInfo, we must be the second player
+          const secondPlayer = message.roomState.players[1];
+          if (secondPlayer) {
+            playerInfo = {
+              playerId: secondPlayer.id,
+              symbol: secondPlayer.symbol
+            };
           }
         }
         break;
@@ -213,7 +234,6 @@ export function createWebSocketStore(serverUrl: string = 'ws://localhost:3001'):
 
       case 'playerDisconnected':
         roomState = message.roomState;
-        // Could add notification logic here
         break;
 
       case 'error':
@@ -223,12 +243,12 @@ export function createWebSocketStore(serverUrl: string = 'ws://localhost:3001'):
       default:
         console.warn('Unknown message type:', message);
     }
-  }
+  };
 
-  function destroy(): void {
+  const destroy = (): void => {
     disconnect();
     storeInstance = null;
-  }
+  };
 
   const store: WebSocketStore = {
     get connectionStatus() { return connectionStatus; },
@@ -236,7 +256,7 @@ export function createWebSocketStore(serverUrl: string = 'ws://localhost:3001'):
     get playerInfo() { return playerInfo; },
     get errorMessage() { return errorMessage; },
     get isMyTurn() { return isMyTurn; },
-    get canMakeMove() { return canMakeMove; },
+    canMakeMove,
     connect,
     disconnect,
     createRoom,
@@ -248,3 +268,6 @@ export function createWebSocketStore(serverUrl: string = 'ws://localhost:3001'):
   storeInstance = store;
   return store;
 }
+
+// Default export for convenience
+export const websocketStore = createWebSocketStore();

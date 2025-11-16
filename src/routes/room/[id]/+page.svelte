@@ -24,7 +24,7 @@
   let playerSymbol: 'X' | 'O' | null = null;
   let error: string | null = null;
 
-  let ws = websocketStore();
+  let ws = websocketStore;
   let pageUnsub: () => void;
   let wsUnsub: () => void;
 
